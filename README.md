@@ -220,7 +220,7 @@ brightness=20                  ; Brilho (1 a 100%)
 
 ## Créditos e Origem
 
-Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/wifi-tally) criado originalmente por [xopn.de](https://github.com/wifi-tally).
+Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/wifi-tally) criado originalmente por [Christian Zenker](https://github.com/czenker).
 
 **Principais melhorias e adições desta versão:**
 - Compatibilidade nativa com **OBS Studio 30** via WebSocket v5.
