@@ -25,9 +25,9 @@ class CommandCreator {
         if (tally.isHighlighted()) {
             return "highlight";
         }
-        else if (programs === null && tally.isPatched()) {
-            // mixer is disconnected
-            return "unknown";
+        else if (programs === null && previews === null) {
+            // mixer desconectado: apaga os LEDs e libera o tally
+            return "release";
         }
         else if (programs !== null && tally.isIn(programs)) {
             return "on-air";

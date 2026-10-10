@@ -126,6 +126,16 @@ class ObsConnector {
             try {
                 const obsBridge = require('../../../../../src/obs_bridge');
                 obsBridge.setTarget(targetIp, targetPort);
+                if (obsBridge && typeof obsBridge.isObsConnected === 'function' && !obsBridge.isObsConnected()) {
+                    if (this.connected !== false) {
+                        this.connected = false;
+                        this.previewScenes = [];
+                        this.programScenes = [];
+                        this.communicator.notifyMixerIsDisconnected();
+                    }
+                    this.reconnectTimeout = setTimeout(connect, reconnectTimeoutMs);
+                    return;
+                }
             } catch (e) {}
 
             console.log(`Connecting to internal OBS bridge at 127.0.0.1:4444 (Target: ${targetIp}:${targetPort})`);
@@ -139,15 +149,18 @@ class ObsConnector {
                 (_a = this.obs) === null || _a === void 0 ? void 0 : _a.on('ConnectionClosed', () => {
                     var _a;
                     this.connected = false;
+                    this.previewScenes = [];
+                    this.programScenes = [];
                     this.communicator.notifyMixerIsDisconnected();
                     (_a = this.obs) === null || _a === void 0 ? void 0 : _a.removeAllListeners('ConnectionClosed');
-                    console.error("Connection to OBS lost");
+                    console.log("[vTally] Conexão com OBS finalizada");
                     this.reconnectTimeout = setTimeout(connect, reconnectTimeoutMs);
                 });
             }).catch(err => {
                 this.connected = false;
+                this.previewScenes = [];
+                this.programScenes = [];
                 this.communicator.notifyMixerIsDisconnected();
-                console.error("error when connecting to OBS:", err.error);
                 this.reconnectTimeout = setTimeout(connect, reconnectTimeoutMs);
             });
         };

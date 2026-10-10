@@ -204,6 +204,12 @@
       border-radius: 50%;
       background: var(--accent-green);
       box-shadow: 0 0 8px var(--accent-green);
+      transition: all 0.3s ease;
+    }
+
+    .header-dot.disconnected {
+      background: #ef4444 !important;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.6) !important;
     }
 
     /* ==========================================================================
@@ -1032,9 +1038,32 @@
           var chips = document.createElement('div');
           chips.id = 'header-chips-container';
           chips.className = 'header-status-chips';
-          chips.innerHTML = '<span class="header-chip"><span class="header-dot"></span>OBS 30</span>' +
+          chips.innerHTML = '<span class="header-chip" id="chip-obs-header"><span class="header-dot disconnected"></span><span class="header-text">OBS Desconectado</span></span>' +
                             '<span class="header-chip"><span class="header-dot"></span>Hub Online</span>';
           toolbar.appendChild(chips);
+
+          function checkObsLiveStatus() {
+            fetch('/api/status')
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                var obsChip = document.getElementById('chip-obs-header');
+                if (obsChip) {
+                  var dot = obsChip.querySelector('.header-dot');
+                  var txt = obsChip.querySelector('.header-text');
+                  if (data && data.obs_connected) {
+                    if (dot) dot.className = 'header-dot';
+                    if (txt) txt.textContent = 'OBS Conectado';
+                  } else {
+                    if (dot) dot.className = 'header-dot disconnected';
+                    if (txt) txt.textContent = 'OBS Desconectado';
+                  }
+                }
+              })
+              .catch(function() {});
+          }
+
+          checkObsLiveStatus();
+          setInterval(checkObsLiveStatus, 2500);
         }
 
         // Remove card "Create Web Tally" se estiver no DOM

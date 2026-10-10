@@ -91,6 +91,7 @@ class MixerCommunicator {
     notifyMixerIsDisconnected() {
         if (this.isConnected !== false) {
             this.isConnected = false;
+            this.notifyProgramPreviewChanged(null, null);
             this.emitter.emit('mixer.disconnected');
         }
     }
