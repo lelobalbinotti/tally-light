@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurador vTally Light</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -654,12 +655,15 @@
 <body>
   <div class="container">
     <header>
-      <div class="title-group">
-        <h1>
-          vTally Light
-          <span class="badge-tally">Painel de Configuração</span>
-        </h1>
-        <p>Ajuste Wi-Fi, servidor Hub e brilho dos LEDs com gravação direta na placa</p>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <img src="vtally_logo.png" alt="vTally Light" style="width: 54px; height: 54px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.12); flex-shrink: 0; object-fit: cover;">
+        <div class="title-group">
+          <h1>
+            vTally Light
+            <span class="badge-tally">Painel de Configuração</span>
+          </h1>
+          <p>Ajuste Wi-Fi, servidor Hub e brilho dos LEDs com gravação direta na placa</p>
+        </div>
       </div>
       <div class="status-chips">
         <div class="chip" id="chip-port">
@@ -740,11 +744,11 @@
         <div class="static-ip-box" id="box-static-ip">
           <div class="form-group">
             <label for="inp-ip">IP do Tally</label>
-            <input type="text" id="inp-ip" value="192.168.1.50">
+            <input type="text" id="inp-ip" value="192.168.3.79">
           </div>
           <div class="form-group">
             <label for="inp-gw">Gateway (Roteador)</label>
-            <input type="text" id="inp-gw" value="192.168.1.1">
+            <input type="text" id="inp-gw" value="192.168.3.1">
           </div>
         </div>
 
@@ -752,7 +756,7 @@
         <div class="static-ip-box" style="border-style: solid;">
           <div class="form-group">
             <label for="inp-hub-ip">IP do vTally Hub</label>
-            <input type="text" id="inp-hub-ip" value="192.168.1.100">
+            <input type="text" id="inp-hub-ip" value="192.168.3.96">
           </div>
           <div class="form-group">
             <label for="inp-hub-port">Porta UDP</label>
@@ -1061,9 +1065,9 @@
           document.getElementById('inp-name').value = c.tally_name || 'Cam4';
           document.getElementById('inp-ssid').value = c.ssid || '';
           document.getElementById('inp-password').value = c.password || '';
-          document.getElementById('inp-ip').value = c.static_ip || '192.168.1.50';
-          document.getElementById('inp-gw').value = c.gateway || '192.168.1.1';
-          document.getElementById('inp-hub-ip').value = c.hub_ip || '192.168.1.100';
+          document.getElementById('inp-ip').value = c.static_ip || '192.168.3.79';
+          document.getElementById('inp-gw').value = c.gateway || '192.168.3.1';
+          document.getElementById('inp-hub-ip').value = c.hub_ip || '192.168.3.96';
           document.getElementById('inp-hub-port').value = c.hub_port || 7411;
           setBrightness(c.brightness || 5);
           setIpMode(c.ip_mode || 'static');
