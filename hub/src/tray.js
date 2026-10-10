@@ -44,4 +44,11 @@ app.whenReady().then(() => {
     ])
     tray.setToolTip('vTally Hub')
     tray.setContextMenu(contextMenu)
+    tray.on('double-click', openBrowser)
+    tray.on('click', openBrowser)
+
+    // Abrir o navegador automaticamente ao iniciar o executável
+    setTimeout(() => {
+        openBrowser()
+    }, 1200)
 })

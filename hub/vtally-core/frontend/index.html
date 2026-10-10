@@ -113,11 +113,11 @@
     .MuiToolbar-root img,
     img[alt="vTally"],
     img[src*="logo-with-text"] {
-      width: 112px !important;
-      height: 38px !important;
+      width: 154px !important;
+      height: 36px !important;
       display: block !important;
       margin: 0 16px 0 0 !important;
-      filter: drop-shadow(0 2px 8px rgba(99, 102, 241, 0.35)) !important;
+      filter: drop-shadow(0 2px 8px rgba(239, 68, 68, 0.35)) !important;
       object-fit: contain !important;
       flex-shrink: 0 !important;
     }
@@ -1006,12 +1006,14 @@
         }
         toolbar.setAttribute('data-vtally-custom', 'true');
 
-        // Corrige tamanho do logotipo SVG
+        // Corrige tamanho e estilo do logotipo
         var logoImg = toolbar.querySelector('img');
         if (logoImg) {
-          logoImg.style.setProperty('width', '112px', 'important');
-          logoImg.style.setProperty('height', '38px', 'important');
+          logoImg.style.setProperty('width', '154px', 'important');
+          logoImg.style.setProperty('height', '36px', 'important');
           logoImg.style.setProperty('display', 'block', 'important');
+          logoImg.style.setProperty('object-fit', 'contain', 'important');
+          logoImg.style.setProperty('filter', 'drop-shadow(0 2px 8px rgba(239, 68, 68, 0.35))', 'important');
         }
 
         // Renomeia o botão Flash para "Configurar Tally"
