@@ -96,6 +96,19 @@ brightness=20                  ; Brilho (1 a 100%)
 
 ---
 
+## Créditos e Origem
+
+Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/vtally) criado originalmente por [xopn.de](https://github.com/wifi-tally).
+
+**Principais melhorias e adições desta versão:**
+- Compatibilidade nativa com **OBS Studio 30** via WebSocket v5 (com ponte de tradução integrada e sincronização em tempo real).
+- Aplicativo portátil para Windows (`vTally Hub.exe`) com controle na bandeja do sistema e inicialização automática da interface web.
+- Painel integrado de configuração e gravação serial via USB no navegador (`/tally-setup`).
+- Firmware otimizado para matrizes de LED endereçáveis **WS2812B 5x5** e LEDs RGB de 5mm, com eliminação de flashes espúrios no boot.
+- Calibração de cores e distinção clara de estados: Programa (vermelho), Preview (verde), Standby (azul suave) e desligamento automático dos LEDs ao fechar o mixer de vídeo.
+
+---
+
 ## Licença
 
 Este projeto é distribuído sob a licença [MIT](LICENSE).
