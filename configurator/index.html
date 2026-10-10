@@ -1,0 +1,1249 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurador vTally Light</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: rgba(16, 23, 41, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(26, 35, 60, 0.85);
+      --text-main: #f3f4f6;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-blue: #38bdf8;
+      --accent-yellow: #f59e0b;
+      --input-bg: rgba(15, 23, 42, 0.6);
+      --input-border: rgba(255, 255, 255, 0.12);
+      --input-focus: #6366f1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--bg-dark);
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.05) 0%, transparent 40%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1080px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 4px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+
+
+    .title-group h1 {
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-tally {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+      color: #c084fc;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .status-chips {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(8px);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+    }
+
+    .dot.online {
+      background: var(--accent-green);
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    .dot.busy {
+      background: var(--accent-yellow);
+      animation: pulse 1s infinite alternate;
+    }
+
+    .grid-main {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 880px) {
+      .grid-main {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 24px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e2e8f0;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .label-hint {
+      color: var(--text-muted);
+      font-weight: 400;
+      font-size: 0.78rem;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-main);
+      font-size: 0.92rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--input-focus);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .toggle-pass-btn {
+      position: absolute;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 4px;
+    }
+
+    .toggle-pass-btn:hover {
+      color: var(--text-main);
+    }
+
+    .pills-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      flex-wrap: wrap;
+    }
+
+    .pill-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pill-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      color: #e0e7ff;
+      border-color: rgba(99, 102, 241, 0.4);
+    }
+
+    .radio-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--input-border);
+      gap: 4px;
+    }
+
+    .radio-option {
+      text-align: center;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .radio-option.active {
+      background: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+    }
+
+    .static-ip-box {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .slider-val-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 4px 10px;
+      border-radius: 6px;
+      min-width: 52px;
+      text-align: center;
+    }
+
+    /* MATRIZ 5x5 LED SIMULATOR */
+    .matrix-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      padding: 16px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 12px;
+      border: 1px solid var(--card-border);
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 34px);
+      grid-template-rows: repeat(5, 34px);
+      gap: 8px;
+      background: #020617;
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .led-pixel {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+
+    .led-pixel.center {
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+    }
+
+    /* LED States */
+    .led-pixel.blue-glow {
+      background: #38bdf8 !important;
+      box-shadow: 0 0 14px #38bdf8, 0 0 24px rgba(56, 189, 248, 0.6) !important;
+    }
+
+    .led-pixel.green-glow {
+      background: #10b981 !important;
+      box-shadow: 0 0 14px #10b981, 0 0 24px rgba(16, 185, 129, 0.6) !important;
+    }
+
+    .led-pixel.red-glow {
+      background: #ef4444 !important;
+      box-shadow: 0 0 14px #ef4444, 0 0 24px rgba(239, 68, 68, 0.6) !important;
+    }
+
+    .led-pixel.yellow-glow {
+      background: #facc15 !important;
+      box-shadow: 0 0 14px #facc15, 0 0 24px rgba(250, 204, 21, 0.6) !important;
+    }
+
+    .matrix-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .test-actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+
+    .test-btn {
+      padding: 8px 6px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      text-align: center;
+      transition: all 0.15s;
+    }
+
+    .btn-test-preview {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+    .btn-test-preview:hover {
+      background: rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-test-program {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .btn-test-program:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-test-boot {
+      background: rgba(56, 189, 248, 0.15);
+      color: #7dd3fc;
+      border-color: rgba(56, 189, 248, 0.3);
+    }
+    .btn-test-boot:hover {
+      background: rgba(56, 189, 248, 0.3);
+    }
+
+    .btn-test-off {
+      background: rgba(255, 255, 255, 0.05);
+      color: #94a3b8;
+      border-color: var(--card-border);
+    }
+    .btn-test-off:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+
+    .main-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .btn-primary {
+      flex: 2;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+      transition: all 0.2s;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+      border: 1px solid var(--card-border);
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+
+    /* CARD DE GRAVAÇÃO DE PLACA NOVA */
+    .virgin-board-box {
+      margin-top: 14px;
+      padding: 16px;
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 78, 59, 0.2));
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .virgin-board-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #34d399;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge-chip {
+      font-size: 0.72rem;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.2);
+      color: #a7f3d0;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .virgin-board-desc {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      line-height: 1.4;
+    }
+
+    .btn-virgin-flash {
+      background: linear-gradient(135deg, #059669, #10b981);
+      color: #ffffff;
+      border: none;
+      padding: 11px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn-virgin-flash:hover:not(:disabled) {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+
+    .btn-virgin-flash:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    /* TERMINAL LOG DRAWER */
+    .log-drawer {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .log-header {
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .log-body {
+      padding: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      max-height: 140px;
+      overflow-y: auto;
+      line-height: 1.5;
+    }
+
+    .log-body p {
+      margin-bottom: 4px;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes pulse {
+      from { opacity: 0.5; }
+      to { opacity: 1; }
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      border: 1px solid var(--accent-green);
+      color: #e2e8f0;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="title-group">
+        <h1>
+          vTally Light
+          <span class="badge-tally">Painel de Configuração</span>
+        </h1>
+        <p>Ajuste Wi-Fi, servidor Hub e brilho dos LEDs com gravação direta na placa</p>
+      </div>
+      <div class="status-chips">
+        <div class="chip" id="chip-port">
+          <span class="dot" id="dot-port"></span>
+          <span id="text-port">Detectando USB...</span>
+        </div>
+        <div class="chip" id="chip-wifi">
+          <span class="dot" id="dot-wifi"></span>
+          <span id="text-wifi">Verificando Wi-Fi...</span>
+        </div>
+        <div class="chip" id="chip-obs">
+          <span class="dot" id="dot-obs"></span>
+          <span id="text-obs">Aguardando OBS 30...</span>
+        </div>
+        <a href="/" class="chip" style="text-decoration: none; cursor: pointer; color: #94a3b8;" title="Voltar para a tela inicial do vTally Hub">
+          <span>← Voltar ao Hub</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- CONFIGURAÇÃO DO TALLY -->
+    <div class="grid-main" id="view-config">
+      <!-- COLUNA DA ESQUERDA: FORMULÁRIO -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Parâmetros de Rede e Operação</div>
+          <button type="button" class="pill-btn" id="btn-reload-ports">Recarregar Portas</button>
+        </div>
+
+        <!-- PORTA COM -->
+        <div class="form-group">
+          <label for="sel-port">Porta Serial USB (ESP8266)</label>
+          <select id="sel-port">
+            <option value="">Procurando placas USB...</option>
+          </select>
+        </div>
+
+        <!-- NOME DO TALLY -->
+        <div class="form-group">
+          <label for="inp-name">
+            Identificação da Câmera
+            <span class="label-hint">Ex: Cam1, Cam4</span>
+          </label>
+          <input type="text" id="inp-name" value="Cam4" maxlength="24">
+          <div class="pills-group">
+            <button type="button" class="pill-btn" onclick="setName('Cam1')">Cam1</button>
+            <button type="button" class="pill-btn" onclick="setName('Cam2')">Cam2</button>
+            <button type="button" class="pill-btn" onclick="setName('Cam3')">Cam3</button>
+            <button type="button" class="pill-btn" onclick="setName('Cam4')">Cam4</button>
+            <button type="button" class="pill-btn" onclick="setName('Cam5')">Cam5</button>
+          </div>
+        </div>
+
+        <!-- WI-FI -->
+        <div class="form-group">
+          <label for="inp-ssid">Nome da Rede Wi-Fi (SSID)</label>
+          <input type="text" id="inp-ssid" placeholder="Ex: Studio-WiFi">
+        </div>
+
+        <div class="form-group">
+          <label for="inp-password">Senha da Rede Wi-Fi</label>
+          <div class="input-wrapper">
+            <input type="password" id="inp-password" placeholder="Senha da rede">
+            <button type="button" class="toggle-pass-btn" id="btn-toggle-pass">Mostrar</button>
+          </div>
+        </div>
+
+        <!-- MODO DE IP -->
+        <div class="form-group">
+          <label>Endereçamento IP na Rede</label>
+          <div class="radio-switch">
+            <div class="radio-option active" id="opt-static" onclick="setIpMode('static')">IP Estático (Rápido)</div>
+            <div class="radio-option" id="opt-dhcp" onclick="setIpMode('dhcp')">DHCP (Automático)</div>
+          </div>
+        </div>
+
+        <!-- CAMPOS IP ESTATICO -->
+        <div class="static-ip-box" id="box-static-ip">
+          <div class="form-group">
+            <label for="inp-ip">IP do Tally</label>
+            <input type="text" id="inp-ip" value="192.168.1.50">
+          </div>
+          <div class="form-group">
+            <label for="inp-gw">Gateway (Roteador)</label>
+            <input type="text" id="inp-gw" value="192.168.1.1">
+          </div>
+        </div>
+
+        <!-- HUB IP E PORTA -->
+        <div class="static-ip-box" style="border-style: solid;">
+          <div class="form-group">
+            <label for="inp-hub-ip">IP do vTally Hub</label>
+            <input type="text" id="inp-hub-ip" value="192.168.1.100">
+          </div>
+          <div class="form-group">
+            <label for="inp-hub-port">Porta UDP</label>
+            <input type="number" id="inp-hub-port" value="7411">
+          </div>
+        </div>
+
+        <!-- AÇÕES -->
+        <div class="main-actions">
+          <button type="button" class="btn-primary" id="btn-save">
+            <span id="btn-save-text">Gravar na Placa e Reiniciar</span>
+          </button>
+          <button type="button" class="btn-secondary" id="btn-read">
+            Ler da Placa
+          </button>
+        </div>
+
+        <!-- GRAVAÇÃO DE PLACA NOVA (PRIMEIRA INSTALAÇÃO) -->
+        <div class="virgin-board-box">
+          <div class="virgin-board-title">
+            <span>Placa Nova (Primeira Instalação)</span>
+            <span class="badge-chip">Fábrica / Sem Firmware</span>
+          </div>
+          <p class="virgin-board-desc">
+            Instala o firmware NodeMCU, o sistema de arquivos completo com scripts Lua e as configurações nesta placa virgem com 1 clique.
+          </p>
+          <button type="button" class="btn-virgin-flash" id="btn-flash-full">
+            <span id="btn-flash-full-text">Instalar Firmware e Configurar Placa Nova</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- COLUNA DA DIREITA: ILUMINAÇÃO & SIMULADOR -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Iluminação e Matriz 5x5</div>
+        </div>
+
+        <!-- TIPO DE LED DO OPERADOR -->
+        <div class="form-group">
+          <label>
+            Luz do Operador
+            <span class="label-hint">Tipo de Iluminação</span>
+          </label>
+          <div class="radio-switch" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="radio-option active" id="opt-op-cathode" onclick="setOpType('grb-')">Cátodo Comum (grb-)</div>
+            <div class="radio-option" id="opt-op-anode" onclick="setOpType('grb+')">Ânodo Comum (grb+)</div>
+            <div class="radio-option" id="opt-op-ws2812" onclick="setOpType('ws2812')">Matriz WS2812 (D4)</div>
+          </div>
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 6px; line-height: 1.4;" id="desc-op-type">
+            Cátodo Comum (grb-): LED 4 pinos com terminal longo no GND. Vermelho em D2, Verde em D1, Azul em D3.
+          </div>
+        </div>
+
+        <!-- BRILHO -->
+        <div class="form-group">
+          <label for="range-brightness">
+            Intensidade do Brilho
+            <span class="label-hint">Definido em 5%</span>
+          </label>
+          <div class="slider-row">
+            <input type="range" id="range-brightness" min="1" max="100" value="5">
+            <div class="slider-val-badge" id="badge-brightness">5%</div>
+          </div>
+          <div class="pills-group">
+            <button type="button" class="pill-btn" onclick="setBrightness(5)">5% (Recomendado)</button>
+            <button type="button" class="pill-btn" onclick="setBrightness(10)">10%</button>
+            <button type="button" class="pill-btn" onclick="setBrightness(15)">15%</button>
+            <button type="button" class="pill-btn" onclick="setBrightness(25)">25%</button>
+          </div>
+        </div>
+
+        <!-- SIMULADOR 5x5 -->
+        <div class="matrix-container">
+          <div class="matrix-grid" id="led-grid">
+            <!-- 25 pixels gerados via JS -->
+          </div>
+
+          <div class="matrix-legend">
+            <div class="legend-item">
+              <span class="legend-dot" style="background: #38bdf8;"></span>
+              <span>Centro: 9 LEDs (Boot)</span>
+            </div>
+            <div class="legend-item">
+              <span class="legend-dot" style="background: #10b981;"></span>
+              <span>Borda: 16 LEDs (Tally)</span>
+            </div>
+          </div>
+
+          <!-- BOTÕES DE TESTE -->
+          <div class="test-actions">
+            <button type="button" class="test-btn btn-test-preview" onclick="testMatrix('preview')">Preview (Verde)</button>
+            <button type="button" class="test-btn btn-test-program" onclick="testMatrix('program')">Program (Vermelho)</button>
+            <button type="button" class="test-btn btn-test-boot" onclick="testMatrix('boot')">Boot (Azul)</button>
+            <button type="button" class="test-btn btn-test-off" onclick="testMatrix('off')">Apagar</button>
+          </div>
+          <div style="margin-top: 8px; text-align: center; min-height: 22px;">
+            <span id="test-status-badge" style="display: none; font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 6px; background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid rgba(99, 102, 241, 0.35);"></span>
+          </div>
+        </div>
+
+        <!-- LOGS EM TEMPO REAL -->
+        <div class="log-drawer">
+          <div class="log-header">
+            <span>Console da Placa</span>
+            <span id="log-status">Pronto</span>
+          </div>
+          <div class="log-body" id="log-output">
+            <p>> Painel pronto. Clique em "Ler da Placa" ou conecte a USB.</p>
+          </div>
+        </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast-msg">Mensagem</div>
+
+  <script>
+    let currentMode = 'static';
+    let currentMatrixState = 'preview';
+    let currentOpType = 'grb-';
+
+    function setOpType(type) {
+      currentOpType = type;
+      document.getElementById('opt-op-cathode').classList.toggle('active', type === 'grb-');
+      document.getElementById('opt-op-anode').classList.toggle('active', type === 'grb+');
+      document.getElementById('opt-op-ws2812').classList.toggle('active', type === 'ws2812');
+      const desc = document.getElementById('desc-op-type');
+      if (desc) {
+        if (type === 'ws2812') {
+          desc.textContent = 'Matriz WS2812 5x5: duas matrizes em cascata no pino D4 (50 LEDs: Operador + Stage ligada no DOUT da 1ª).';
+        } else if (type === 'grb+') {
+          desc.textContent = 'Ânodo Comum (grb+): LED 4 pinos com terminal longo no 3V3. Vermelho em D2, Verde em D1, Azul em D3. Matriz no D4 atua como Stage.';
+        } else {
+          desc.textContent = 'Cátodo Comum (grb-): LED 4 pinos com terminal longo no GND. Vermelho em D2, Verde em D1, Azul em D3. Matriz no D4 atua como Stage.';
+        }
+      }
+    }
+
+    // Gera os 25 LEDs no grid 5x5
+    const grid = document.getElementById('led-grid');
+    for (let i = 1; i <= 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'led-pixel';
+      p.id = `led-${i}`;
+      const isCenter = (i >= 7 && i <= 9) || (i >= 12 && i <= 14) || (i >= 17 && i <= 19);
+      if (isCenter) p.classList.add('center');
+      grid.appendChild(p);
+    }
+
+    function setMatrixColor(state) {
+      currentMatrixState = state;
+      for (let i = 1; i <= 25; i++) {
+        const el = document.getElementById(`led-${i}`);
+        el.className = 'led-pixel';
+        const isCenter = (i >= 7 && i <= 9) || (i >= 12 && i <= 14) || (i >= 17 && i <= 19);
+        if (isCenter) el.classList.add('center');
+
+        if (state === 'boot') {
+          if (isCenter) el.classList.add('blue-glow');
+        } else if (state === 'preview') {
+          if (!isCenter) el.classList.add('green-glow');
+        } else if (state === 'program') {
+          if (!isCenter) el.classList.add('red-glow');
+        } else if (state === 'both') {
+          if (!isCenter) el.classList.add('yellow-glow');
+        }
+      }
+    }
+
+    let testCountdownTimer = null;
+
+    function testMatrix(state) {
+      setMatrixColor(state);
+      const testStatusEl = document.getElementById('test-status-badge');
+      if (testCountdownTimer) {
+        clearInterval(testCountdownTimer);
+        testCountdownTimer = null;
+      }
+
+      const durationMs = 10000;
+
+      if (state === 'off') {
+        if (testStatusEl) {
+          testStatusEl.textContent = 'LEDs apagados';
+          testStatusEl.style.display = 'inline-block';
+          setTimeout(() => { if (testStatusEl) testStatusEl.style.display = 'none'; }, 2000);
+        }
+      } else {
+        let remainingSec = Math.round(durationMs / 1000);
+        if (testStatusEl) {
+          testStatusEl.textContent = `Teste ativo na placa (${remainingSec}s)`;
+          testStatusEl.style.display = 'inline-block';
+        }
+        testCountdownTimer = setInterval(() => {
+          remainingSec--;
+          if (remainingSec <= 0) {
+            clearInterval(testCountdownTimer);
+            testCountdownTimer = null;
+            if (testStatusEl) {
+              testStatusEl.textContent = 'Teste concluído';
+              setTimeout(() => { if (testStatusEl) testStatusEl.style.display = 'none'; }, 2000);
+            }
+            setMatrixColor('off');
+          } else if (testStatusEl) {
+            testStatusEl.textContent = `Teste ativo na placa (${remainingSec}s)`;
+          }
+        }, 1000);
+      }
+
+      // Dispara o teste UDP sustentado em segundo plano para a placa física
+      fetch('/api/test-led', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ color: state, duration: durationMs })
+      }).catch(() => {});
+    }
+
+    function setName(name) {
+      document.getElementById('inp-name').value = name;
+    }
+
+    function setBrightness(val) {
+      document.getElementById('range-brightness').value = val;
+      document.getElementById('badge-brightness').textContent = val + '%';
+    }
+
+    document.getElementById('range-brightness').addEventListener('input', (e) => {
+      document.getElementById('badge-brightness').textContent = e.target.value + '%';
+    });
+
+    function setIpMode(mode) {
+      currentMode = mode;
+      document.getElementById('opt-static').classList.toggle('active', mode === 'static');
+      document.getElementById('opt-dhcp').classList.toggle('active', mode === 'dhcp');
+      document.getElementById('box-static-ip').style.display = (mode === 'static') ? 'grid' : 'none';
+    }
+
+    // Toggle senha
+    const passInp = document.getElementById('inp-password');
+    const togglePassBtn = document.getElementById('btn-toggle-pass');
+    togglePassBtn.addEventListener('click', () => {
+      if (passInp.type === 'password') {
+        passInp.type = 'text';
+        togglePassBtn.textContent = 'Ocultar';
+      } else {
+        passInp.type = 'password';
+        togglePassBtn.textContent = 'Mostrar';
+      }
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast-msg');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function addLog(msg) {
+      const out = document.getElementById('log-output');
+      const p = document.createElement('p');
+      const timeStr = new Date().toLocaleTimeString('pt-BR');
+      p.textContent = `[${timeStr}] ${msg}`;
+      out.appendChild(p);
+      out.scrollTop = out.scrollHeight;
+    }
+
+    async function loadPorts() {
+      try {
+        const res = await fetch('/api/ports');
+        const data = await res.json();
+        const sel = document.getElementById('sel-port');
+        sel.innerHTML = '';
+        if (data.ports && data.ports.length > 0) {
+          let selected = false;
+          data.ports.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.device;
+            opt.textContent = `${p.device} - ${p.description}`;
+            if (p.is_esp && !selected) {
+              opt.selected = true;
+              selected = true;
+            }
+            sel.appendChild(opt);
+          });
+          if (!selected && sel.options.length > 0) {
+            sel.options[0].selected = true;
+          }
+          document.getElementById('dot-port').className = 'dot online';
+          document.getElementById('text-port').textContent = sel.value + ' Conectada';
+        } else {
+          sel.innerHTML = '<option value="">Nenhuma porta detectada</option>';
+          document.getElementById('dot-port').className = 'dot';
+          document.getElementById('text-port').textContent = 'USB Desconectada';
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        if (data.config) {
+          const c = data.config;
+          document.getElementById('inp-name').value = c.tally_name || 'Cam4';
+          document.getElementById('inp-ssid').value = c.ssid || '';
+          document.getElementById('inp-password').value = c.password || '';
+          document.getElementById('inp-ip').value = c.static_ip || '192.168.1.50';
+          document.getElementById('inp-gw').value = c.gateway || '192.168.1.1';
+          document.getElementById('inp-hub-ip').value = c.hub_ip || '192.168.1.100';
+          document.getElementById('inp-hub-port').value = c.hub_port || 7411;
+          setBrightness(c.brightness || 5);
+          setIpMode(c.ip_mode || 'static');
+          setOpType(c.operator_mode || c.operator_type || 'grb-');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        const dot = document.getElementById('dot-wifi');
+        const text = document.getElementById('text-wifi');
+        if (data.is_online) {
+          dot.className = 'dot online';
+          text.textContent = `Wi-Fi Online (${data.ip || data.name || ''})`;
+        } else {
+          dot.className = 'dot';
+          text.textContent = `Wi-Fi Desconectado`;
+        }
+
+        const dotObs = document.getElementById('dot-obs');
+        const textObs = document.getElementById('text-obs');
+        if (dotObs && textObs) {
+          if (data.obs_connected) {
+            dotObs.className = 'dot online';
+            textObs.textContent = `OBS 30 Conectado (${data.current_program || 'Ao Vivo'})`;
+          } else {
+            dotObs.className = 'dot';
+            textObs.textContent = `Aguardando OBS 30 (v5)`;
+          }
+        }
+      } catch (e) {}
+    }
+
+    document.getElementById('btn-reload-ports').addEventListener('click', () => {
+      loadPorts();
+      showToast('Portas USB atualizadas.');
+    });
+
+    document.getElementById('btn-read').addEventListener('click', () => {
+      loadConfig();
+      showToast('Configurações recarregadas com sucesso.');
+    });
+
+    document.getElementById('btn-save').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-save');
+      const btnText = document.getElementById('btn-save-text');
+      const port = document.getElementById('sel-port').value;
+
+      const payload = {
+        port: port,
+        config: {
+          tally_name: document.getElementById('inp-name').value.trim(),
+          ssid: document.getElementById('inp-ssid').value.trim(),
+          password: document.getElementById('inp-password').value,
+          ip_mode: currentMode,
+          static_ip: (currentMode === 'static') ? document.getElementById('inp-ip').value.trim() : '',
+          gateway: document.getElementById('inp-gw').value.trim(),
+          netmask: '255.255.255.0',
+          hub_ip: document.getElementById('inp-hub-ip').value.trim(),
+          hub_port: parseInt(document.getElementById('inp-hub-port').value, 10) || 7411,
+          brightness: parseInt(document.getElementById('range-brightness').value, 10) || 5,
+          operator_mode: currentOpType,
+          operator_type: (currentOpType === 'grb+' ? 'grb+' : 'grb-'),
+          operator_ws2812: (currentOpType === 'ws2812' ? '25 grb' : '0 grb'),
+          stage_ws2812: '25 grb'
+        }
+      };
+
+      btn.disabled = true;
+      btnText.innerHTML = '<span class="spinner"></span> Gravando na Placa...';
+      addLog('> Iniciando gravação na placa pela porta ' + (port || 'local') + '...');
+
+      try {
+        const res = await fetch('/api/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.logs) {
+          data.logs.forEach(l => addLog(l));
+        }
+        if (data.success) {
+          showToast(data.message || 'Gravado com sucesso!');
+          addLog('> Placa reiniciada e pronta.');
+        } else {
+          showToast('Erro ao gravar: ' + (data.message || 'Verifique a porta USB'));
+        }
+      } catch (e) {
+        showToast('Erro de comunicação com o servidor');
+        addLog('> Erro: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Gravar na Placa e Reiniciar';
+        checkStatus();
+      }
+    });
+
+    document.getElementById('btn-flash-full').addEventListener('click', async () => {
+      const port = document.getElementById('sel-port').value;
+      if (!port) {
+        showToast('Selecione uma porta COM antes de iniciar a gravação.');
+        addLog('> Erro: Nenhuma porta serial selecionada.');
+        return;
+      }
+
+      const conf = confirm(
+        'Deseja instalar o firmware vTally completo na placa em ' + port + '?\n\n' +
+        'Isso irá gravar o sistema operacional NodeMCU, todos os scripts Lua e as configurações definidas neste formulário.'
+      );
+      if (!conf) return;
+
+      const btn = document.getElementById('btn-flash-full');
+      const btnText = document.getElementById('btn-flash-full-text');
+      const btnSave = document.getElementById('btn-save');
+
+      const payload = {
+        port: port,
+        config: {
+          tally_name: document.getElementById('inp-name').value.trim(),
+          ssid: document.getElementById('inp-ssid').value.trim(),
+          password: document.getElementById('inp-password').value,
+          ip_mode: currentMode,
+          static_ip: (currentMode === 'static') ? document.getElementById('inp-ip').value.trim() : '',
+          gateway: document.getElementById('inp-gw').value.trim(),
+          netmask: '255.255.255.0',
+          hub_ip: document.getElementById('inp-hub-ip').value.trim(),
+          hub_port: parseInt(document.getElementById('inp-hub-port').value, 10) || 7411,
+          brightness: parseInt(document.getElementById('range-brightness').value, 10) || 5,
+          operator_mode: currentOpType,
+          operator_type: (currentOpType === 'grb+' ? 'grb+' : 'grb-'),
+          operator_ws2812: (currentOpType === 'ws2812' ? '25 grb' : '0 grb'),
+          stage_ws2812: '25 grb'
+        }
+      };
+
+      btn.disabled = true;
+      btnSave.disabled = true;
+      btnText.innerHTML = '<span class="spinner"></span> Instalando Firmware Completo...';
+      addLog('> [Primeira Instalação] Iniciando esptool na porta ' + port + '...');
+      addLog('> Gravando nodemcu_firmware.bin e full_spiffs_patched.bin...');
+
+      try {
+        const res = await fetch('/api/flash-full', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.logs) {
+          data.logs.forEach(l => addLog(l));
+        }
+        if (data.success) {
+          showToast('Placa virgem instalada e configurada com sucesso!');
+          addLog('> Sucesso: Placa pronta para uso no vTally!');
+        } else {
+          showToast('Falha na instalação: ' + (data.message || 'Verifique o cabo USB'));
+        }
+      } catch (e) {
+        showToast('Erro de comunicação durante a gravação');
+        addLog('> Erro: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btnSave.disabled = false;
+        btnText.textContent = 'Instalar Firmware e Configurar Placa Nova';
+        checkStatus();
+      }
+    });
+
+    // Inicialização
+    loadPorts();
+    loadConfig();
+    checkStatus();
+    setMatrixColor('preview');
+    setInterval(checkStatus, 5000);
+  </script>
+</body>
+</html>

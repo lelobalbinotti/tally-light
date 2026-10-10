@@ -1,0 +1,17 @@
+{
+  "name": "vally-electron",
+  "private": true,
+  "version": "0.5.1",
+  "main": "index.js",
+  "repository": "github:wifi-tally/electron-dist",
+  "license": "MIT",
+  "dependencies": {
+    "electron-log": "^4.4.1",
+    "open": "^8.2.0",
+    "vtally": "https://wifi-tally-nightly.s3.eu-central-1.amazonaws.com/vtally-0.5.1/vtally-0.5.1.tgz"
+  },
+  "postinstall": "electron-builder install-app-deps",
+  "homepage": "https://wifi-tally.github.io/",
+  "bugs": "https://github.com/wifi-tally/wifi-tally/issues",
+  "description": "An affordable and reliable Tally Light that works via WiFi based on NodeMCU / ESP8266. Supports multiple video mixers."
+}

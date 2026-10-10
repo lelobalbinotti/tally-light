@@ -1,0 +1,21 @@
+# Logs e Arquivos Locais
+*.log
+tally-settings.ini
+temp_*.ini
+
+# Node / Dependencias
+node_modules/
+package-lock.json
+
+# Binarios de Release
+*.zip
+*.7z
+dist/
+release_stage/
+
+# Sistema Operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+*.pyc
+__pycache__/
