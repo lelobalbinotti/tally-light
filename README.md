@@ -34,20 +34,144 @@ Não é necessário instalar Node.js ou compilar o código para usar o vTally Hu
 
 ---
 
-## Diagrama de Conexão do Hardware (Pinout)
+## Esquema de Ligação Física do Hardware
 
-Placa recomendada: **NodeMCU ESP8266 (ESP-12E / CH340 ou CP2102)**.
+A placa controladora é o **NodeMCU ESP8266** (módulo ESP-12E com chip serial CH340 ou CP2102). O sistema foi projetado para operar com alimentação padrão de 5V via porta Micro-USB (powerbank, porta USB da câmera ou carregador de celular).
 
-| Pino NodeMCU | Função | Conexão no Hardware |
+### Diagrama Geral de Conexões
+
+```text
+                 +-----------------------------------+
+                 |          NodeMCU ESP8266          |
+                 |                                   |
+                 | [USB 5V]                          |
+                 |                                   |
+(Matriz 5x5 DIN) | D4 (GPIO 2)                  VIN  | ---- +5V (VCC da Matriz 5x5)
+                 |                                   |
+(LED 5mm Verde)  | D1 (GPIO 5)                  GND  | ---- GND Comum (Matriz + LED)
+(LED 5mm Verm.)  | D2 (GPIO 4)                       |
+(LED 5mm Azul)   | D3 (GPIO 0)                  3V3  | ---- (Uso se LED for Ânodo Comum)
+                 +-----------------------------------+
+```
+
+```mermaid
+graph LR
+    subgraph MCU["NodeMCU ESP8266"]
+        D4["D4 (GPIO 2)"]
+        D1["D1 (GPIO 5)"]
+        D2["D2 (GPIO 4)"]
+        D3["D3 (GPIO 0)"]
+        VIN["VIN (5V USB)"]
+        GND["GND (Terra)"]
+    end
+
+    subgraph Matrix["Matriz WS2812B 5x5 (Palco / Frente)"]
+        M_DIN["DIN (Dados)"]
+        M_VCC["+5V / VCC"]
+        M_GND["GND"]
+    end
+
+    subgraph RGB["LED RGB 5mm (Operador / Traseira)"]
+        L_RED["Pino Vermelho (R)"]
+        L_COM["Pino Longo (Cátodo GND)"]
+        L_GRN["Pino Verde (G)"]
+        L_BLU["Pino Azul (B)"]
+    end
+
+    D4 -->|Sinal de Dados| M_DIN
+    VIN -->|Alimentação 5V| M_VCC
+    GND -->|Terra| M_GND
+
+    D2 -->|Resistor 220Ω| L_RED
+    GND -->|Terra Comum| L_COM
+    D1 -->|Resistor 220Ω| L_GRN
+    D3 -->|Resistor 220Ω| L_BLU
+```
+
+---
+
+### Opções de Montagem do Hardware
+
+O firmware suporta diferentes configurações de hardware. Abaixo estão as opções disponíveis e os ajustes correspondentes no arquivo `tally-settings.ini`:
+
+#### Opção 1: Matriz 5x5 no Palco + LED RGB 5mm no Operador (Recomendada)
+Configuração padrão profissional. O apresentador enxerga a matriz brilhante de 25 LEDs na frente da câmera, e o operador conta com um LED piloto discreto na traseira.
+- **Palco (Frente):** Matriz WS2812B conectada ao pino **D4**.
+- **Operador (Traseiro):** LED RGB de 4 pinos nos pinos **D1 (G), D2 (R), D3 (B)**.
+- **Configuração no `tally-settings.ini`:**
+  ```ini
+  operator.type=grb-
+  operator.ws2812=0 grb
+  stage.ws2812=25 grb
+  ```
+
+#### Opção 2: Matriz WS2812B no Operador (Sem Matriz no Palco)
+Se você preferir utilizar a matriz 5x5 voltada exclusivamente para o operador de câmera (ou dentro do visor):
+- **Conexão:** Matriz WS2812B conectada ao pino **D4**.
+- **Configuração no `tally-settings.ini`:**
+  ```ini
+  operator.type=grb-
+  operator.ws2812=25 grb
+  stage.ws2812=0 grb
+  ```
+
+#### Opção 3: Duas Matrizes WS2812B Cascateadas (Palco + Operador)
+Para usar uma matriz 5x5 na frente e outra matriz 5x5 atrás:
+- **Conexão:** 
+  1. Conecte o pino **D4** do NodeMCU no **DIN** da 1ª matriz (Palco).
+  2. Conecte o pino **DOUT** da 1ª matriz no **DIN** da 2ª matriz (Operador).
+  3. Alimentação (+5V e GND) em paralelo para ambas as matrizes.
+- **Configuração no `tally-settings.ini`:**
+  ```ini
+  operator.type=grb-
+  operator.ws2812=25 grb
+  stage.ws2812=25 grb
+  ```
+
+#### Opção 4: Apenas LED RGB de 5mm (Econômica e Compacta)
+Modelo ultracompacto para ser acoplado diretamente na sapata da câmera sem a matriz de 25 LEDs:
+- **Conexão:** Apenas o LED de 4 pinos nos pinos **D1, D2, D3** e **GND**.
+- **Configuração no `tally-settings.ini`:**
+  ```ini
+  operator.type=grb-
+  operator.ws2812=0 grb
+  stage.ws2812=0 grb
+  ```
+
+---
+
+### Pinagem Detalhada dos Componentes
+
+#### 1. LED RGB de 5mm (4 Pinos)
+Olhando para o LED de frente com os terminais virados para baixo e a perna mais longa posicionada na 2ª posição (da esquerda para a direita):
+
+```text
+       +-------+
+      /  RGB    \
+     |   5mm     |
+     +-----------+
+       |   |   |   |
+       |   |   |   |
+      (1) (2) (3) (4)
+       R   COM  G   B
+```
+
+| Terminal | Identificação | Conexão no NodeMCU | Observação |
+| :--- | :--- | :--- | :--- |
+| **Pino 1** | Vermelho (R) | **D2** (GPIO 4) | Usar resistor de 220Ω ou 330Ω em série |
+| **Pino 2** | Comum (Perna mais longa) | **GND** (Cátodo `grb-`) ou **3V3** (Ânodo `grb+`) | Define o tipo no painel ou no `.ini` |
+| **Pino 3** | Verde (G) | **D1** (GPIO 5) | Usar resistor de 220Ω ou 330Ω em série |
+| **Pino 4** | Azul (B) | **D3** (GPIO 0) | Usar resistor de 220Ω ou 330Ω em série |
+
+#### 2. Matriz Endereçável WS2812B 5x5 (25 LEDs)
+| Pino da Matriz | Conexão no NodeMCU | Função |
 | :--- | :--- | :--- |
-| **D1** (GPIO 5) | PWM Verde | Terminal Verde do LED RGB 5mm |
-| **D2** (GPIO 4) | PWM Vermelho | Terminal Vermelho do LED RGB 5mm |
-| **D3** (GPIO 0) | PWM Azul | Terminal Azul do LED RGB 5mm |
-| **D4** (GPIO 2) | Dados WS2812 | Pino **DIN** da Matriz WS2812 5x5 |
-| **GND** | Terra Comum | Terminal Longo do LED (Cátodo) e **GND** da Matriz |
-| **VIN / 3V3** | Alimentação | Alimentação 5V / 3.3V do circuito |
+| **+5V / VCC** | Pino **VIN** (5V da porta USB) | Alimentação elétrica da matriz |
+| **GND** | Pino **GND** do NodeMCU | Terra comum de dados e energia |
+| **DIN** | Pino **D4** (GPIO 2) | Entrada de dados seriais em alta velocidade |
+| **DOUT** | Opcional | Saída de dados (usada apenas se cascatear para outra matriz) |
 
-> **Nota:** Para LEDs ânodo comum (`grb+`), o terminal longo é conectado ao `3V3` e o modo correspondente é selecionado no painel.
+> **Dica de Alimentação:** Para até 25 LEDs operando com brilho entre 10% e 30%, a alimentação direta pelo pino `VIN` da porta USB do NodeMCU é mais que suficiente e segura. Se for utilizar múltiplas matrizes com brilho máximo, utilize uma fonte 5V dedicada conectando o polo negativo (GND) junto ao GND do NodeMCU.
 
 ---
 
