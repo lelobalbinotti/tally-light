@@ -10,16 +10,14 @@ O sistema conta com iluminação dupla independente:
 
 ## Recursos Principais
 
-- **Compatibilidade Nativa com OBS Studio:** Integração via OBS WebSocket (suporte a v5 e v4 através de ponte automática integrada).
+- **Compatibilidade Nativa com OBS Studio:** Integração via OBS WebSocket.
 - **Suporte a Blackmagic ATEM:** Conexão direta com mixers ATEM via rede local.
 - **Painel de Configuração Web Embutido:** Interface moderna acessível em `http://localhost:3000/tally-setup`.
   - Simulador visual em tempo real da matriz 5x5.
-  - Botões de teste rápido com contagem regressiva de 10 segundos na placa física (Preview, Program, Boot, Apagar).
-  - Terminal de logs com data e hora local do computador.
+  - Botões de teste rápido na placa física (Preview, Program, Boot, Apagar).
   - Gravador serial via USB integrado no próprio navegador (gravação rápida de configurações ou instalação completa de placas virgens com 1 clique).
 - **Firmware Otimizado para ESP8266:**
-  - Inicialização limpa: eliminação total do flash branco de PWM no boot.
-  - Cores calibradas para evitar distorção óptica (amarelo quente e rosa definidos no LED RGB).
+  - Cores calibradas para evitar distorção óptica.
   - Isolamento completo entre as luzes de operador e palco (o operador pode ficar em preview enquanto a matriz desliga, se configurado).
 
 ---
@@ -222,14 +220,14 @@ brightness=20                  ; Brilho (1 a 100%)
 
 ## Créditos e Origem
 
-Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/vtally) criado originalmente por [xopn.de](https://github.com/wifi-tally).
+Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/wifi-tally) criado originalmente por [xopn.de](https://github.com/wifi-tally).
 
 **Principais melhorias e adições desta versão:**
-- Compatibilidade nativa com **OBS Studio 30** via WebSocket v5 (com ponte de tradução integrada e sincronização em tempo real).
+- Compatibilidade nativa com **OBS Studio 30** via WebSocket v5.
 - Aplicativo portátil para Windows (`vTally Hub.exe`) com controle na bandeja do sistema e inicialização automática da interface web.
 - Painel integrado de configuração e gravação serial via USB no navegador (`/tally-setup`).
-- Firmware otimizado para matrizes de LED endereçáveis **WS2812B 5x5** e LEDs RGB, com eliminação de flashes espúrios no boot.
-- Calibração de cores e distinção clara de estados: Programa (vermelho), Preview (verde), Standby (azul suave) e desligamento automático dos LEDs ao fechar o mixer de vídeo.
+- Firmware otimizado para matrizes de LED endereçáveis **WS2812B 5x5** e LEDs RGB.
+- Calibração de cores e distinção clara de estados: Programa (vermelho), Preview (verde), Standby (azul suave).
 
 ---
 
