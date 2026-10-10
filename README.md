@@ -3,8 +3,8 @@
 Sistema completo de Tally Light sem fio para **OBS Studio** e **Blackmagic ATEM**, baseado em hardware acessível com **ESP8266 (NodeMCU)**. 
 
 O sistema conta com iluminação dupla independente:
-- **LED do Operador:** LED RGB de 5mm (4 pinos, cátodo comum `grb-` ou ânodo comum `grb+`).
-- **Luz de Palco / Apresentador:** Matriz de 25 LEDs endereçáveis **WS2812B 5x5** (ou fita de LED cascateada).
+- **LED do Operador:** LED RGB ou fita de LED RGB (4 vias, cátodo comum `grb-` ou ânodo comum `grb+`).
+- **Luz de Palco / Apresentador:** Matriz de 25 LEDs endereçáveis **WS2812B 5x5** (ou fita de LED endereçável cascateada).
 
 ---
 
@@ -19,7 +19,7 @@ O sistema conta com iluminação dupla independente:
   - Gravador serial via USB integrado no próprio navegador (gravação rápida de configurações ou instalação completa de placas virgens com 1 clique).
 - **Firmware Otimizado para ESP8266:**
   - Inicialização limpa: eliminação total do flash branco de PWM no boot.
-  - Cores calibradas para evitar distorção óptica (amarelo quente e rosa definidos no LED de 5mm).
+  - Cores calibradas para evitar distorção óptica (amarelo quente e rosa definidos no LED RGB).
   - Isolamento completo entre as luzes de operador e palco (o operador pode ficar em preview enquanto a matriz desliga, se configurado).
 
 ---
@@ -48,9 +48,9 @@ A placa controladora é o **NodeMCU ESP8266** (módulo ESP-12E com chip serial C
                  |                                   |
 (Matriz 5x5 DIN) | D4 (GPIO 2)                  VIN  | ---- +5V (VCC da Matriz 5x5)
                  |                                   |
-(LED 5mm Verde)  | D1 (GPIO 5)                  GND  | ---- GND Comum (Matriz + LED)
-(LED 5mm Verm.)  | D2 (GPIO 4)                       |
-(LED 5mm Azul)   | D3 (GPIO 0)                  3V3  | ---- (Uso se LED for Ânodo Comum)
+(LED RGB Verde)  | D1 (GPIO 5)                  GND  | ---- GND Comum (Matriz + LED RGB)
+(LED RGB Verm.)  | D2 (GPIO 4)                       |
+(LED RGB Azul)   | D3 (GPIO 0)                  3V3  | ---- (Uso se LED RGB for Ânodo Comum)
                  +-----------------------------------+
 ```
 
@@ -71,7 +71,7 @@ graph LR
         M_GND["GND"]
     end
 
-    subgraph RGB["LED RGB 5mm (Operador / Traseira)"]
+    subgraph RGB["LED RGB / Fita RGB (Operador / Traseira)"]
         L_RED["Pino Vermelho (R)"]
         L_COM["Pino Longo (Cátodo GND)"]
         L_GRN["Pino Verde (G)"]
@@ -94,10 +94,10 @@ graph LR
 
 O firmware suporta diferentes configurações de hardware. Abaixo estão as opções disponíveis e os ajustes correspondentes no arquivo `tally-settings.ini`:
 
-#### Opção 1: Matriz 5x5 no Palco + LED RGB 5mm no Operador (Recomendada)
+#### Opção 1: Matriz 5x5 no Palco + LED RGB no Operador (Recomendada)
 Configuração padrão profissional. O apresentador enxerga a matriz brilhante de 25 LEDs na frente da câmera, e o operador conta com um LED piloto discreto na traseira.
 - **Palco (Frente):** Matriz WS2812B conectada ao pino **D4**.
-- **Operador (Traseiro):** LED RGB de 4 pinos nos pinos **D1 (G), D2 (R), D3 (B)**.
+- **Operador (Traseiro):** LED RGB (ou fita de LED RGB de 4 vias) nos pinos **D1 (G), D2 (R), D3 (B)**.
 - **Configuração no `tally-settings.ini`:**
   ```ini
   operator.type=grb-
@@ -128,9 +128,9 @@ Para usar uma matriz 5x5 na frente e outra matriz 5x5 atrás:
   stage.ws2812=25 grb
   ```
 
-#### Opção 4: Apenas LED RGB de 5mm (Econômica e Compacta)
-Modelo ultracompacto para ser acoplado diretamente na sapata da câmera sem a matriz de 25 LEDs:
-- **Conexão:** Apenas o LED de 4 pinos nos pinos **D1, D2, D3** e **GND**.
+#### Opção 4: Apenas LED RGB ou Fita de LED RGB (Econômica e Compacta)
+Modelo ultracompacto para ser acoplado diretamente na sapata da câmera sem a matriz de 25 LEDs (usando um LED RGB avulso ou fita de LED RGB analógica):
+- **Conexão:** Apenas o LED RGB / fita RGB nos pinos **D1, D2, D3** e **GND**.
 - **Configuração no `tally-settings.ini`:**
   ```ini
   operator.type=grb-
@@ -142,13 +142,13 @@ Modelo ultracompacto para ser acoplado diretamente na sapata da câmera sem a ma
 
 ### Pinagem Detalhada dos Componentes
 
-#### 1. LED RGB de 5mm (4 Pinos)
-Olhando para o LED de frente com os terminais virados para baixo e a perna mais longa posicionada na 2ª posição (da esquerda para a direita):
+#### 1. LED RGB (4 Pinos) ou Fita de LED RGB Analógica
+Pode ser utilizado tanto um LED RGB difuso quanto fitas de LED RGB analógicas comuns (com linhas R, G, B e Comum):
 
 ```text
        +-------+
-      /  RGB    \
-     |   5mm     |
+      /  LED    \
+     |   RGB     |
      +-----------+
        |   |   |   |
        |   |   |   |
@@ -156,12 +156,12 @@ Olhando para o LED de frente com os terminais virados para baixo e a perna mais 
        R   COM  G   B
 ```
 
-| Terminal | Identificação | Conexão no NodeMCU | Observação |
+| Terminal / Fio da Fita | Identificação | Conexão no NodeMCU | Observação |
 | :--- | :--- | :--- | :--- |
-| **Pino 1** | Vermelho (R) | **D2** (GPIO 4) | Usar resistor de 220Ω ou 330Ω em série |
-| **Pino 2** | Comum (Perna mais longa) | **GND** (Cátodo `grb-`) ou **3V3** (Ânodo `grb+`) | Define o tipo no painel ou no `.ini` |
-| **Pino 3** | Verde (G) | **D1** (GPIO 5) | Usar resistor de 220Ω ou 330Ω em série |
-| **Pino 4** | Azul (B) | **D3** (GPIO 0) | Usar resistor de 220Ω ou 330Ω em série |
+| **Pino 1 / Linha R** | Vermelho (R) | **D2** (GPIO 4) | Usar resistor de 220Ω ou 330Ω em série |
+| **Pino 2 / Comum** | Comum (Perna longa ou Comum) | **GND** (Cátodo `grb-`) ou **3V3/5V** (Ânodo `grb+`) | Define o tipo no painel ou no `.ini` |
+| **Pino 3 / Linha G** | Verde (G) | **D1** (GPIO 5) | Usar resistor de 220Ω ou 330Ω em série |
+| **Pino 4 / Linha B** | Azul (B) | **D3** (GPIO 0) | Usar resistor de 220Ω ou 330Ω em série |
 
 #### 2. Matriz Endereçável WS2812B 5x5 (25 LEDs)
 | Pino da Matriz | Conexão no NodeMCU | Função |
@@ -201,7 +201,7 @@ station.netmask=255.255.255.0
 hub.ip=192.168.1.100            ; IP do computador onde roda o vTally Hub
 hub.port=7411                  ; Porta padrão UDP
 operator.type=grb-             ; grb- (cátodo comum) ou grb+ (ânodo comum)
-operator.ws2812=0 grb          ; 0 se usar LED 5mm analógico
+operator.ws2812=0 grb          ; 0 se usar LED RGB / fita analógica
 stage.ws2812=25 grb            ; Quantidade de LEDs na matriz (ex: 25)
 brightness=20                  ; Brilho (1 a 100%)
 ```
@@ -228,7 +228,7 @@ Este projeto é uma adaptação e evolução baseada no projeto de código abert
 - Compatibilidade nativa com **OBS Studio 30** via WebSocket v5 (com ponte de tradução integrada e sincronização em tempo real).
 - Aplicativo portátil para Windows (`vTally Hub.exe`) com controle na bandeja do sistema e inicialização automática da interface web.
 - Painel integrado de configuração e gravação serial via USB no navegador (`/tally-setup`).
-- Firmware otimizado para matrizes de LED endereçáveis **WS2812B 5x5** e LEDs RGB de 5mm, com eliminação de flashes espúrios no boot.
+- Firmware otimizado para matrizes de LED endereçáveis **WS2812B 5x5** e LEDs RGB, com eliminação de flashes espúrios no boot.
 - Calibração de cores e distinção clara de estados: Programa (vermelho), Preview (verde), Standby (azul suave) e desligamento automático dos LEDs ao fechar o mixer de vídeo.
 
 ---
