@@ -13,7 +13,9 @@ try {
 const DEFAULT_INI_LOCATIONS = [
   path.join(path.dirname(process.execPath), 'tally-settings.ini'),
   path.join(process.cwd(), 'tally-settings.ini'),
-  'c:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\tally-settings.ini'
+  path.join(__dirname, '../../config/tally-settings.ini'),
+  'D:\\tally-light\\config\\tally-settings.ini',
+  'D:\\vTally-Studio-Release\\tally-settings.ini'
 ];
 
 function getIniPath() {
@@ -162,93 +164,121 @@ function flashIniToBoard(port, iniContent) {
 
     log(`Iniciando comunicação com ${port}...`);
 
-    // Tentar via serialport do Node primeiro se disponível
-    if (serialportModule) {
-      try {
-        const sp = new serialportModule(port, {
-          baudRate: 115200,
-          autoOpen: false
-        });
+    // Helper Python como método principal (grava modulos .lua otimizados, compila .lc e tally-settings.ini)
+    flashViaPython(port, iniContent, log, (pyRes) => {
+      if (pyRes && pyRes.success) {
+        return resolve(pyRes);
+      }
 
-        sp.open((err) => {
-          if (err) {
-            log(`Falha ao abrir ${port} via driver nativo: ${err.message}. Tentando helper Python...`);
-            return flashViaPython(port, iniContent, log, resolve, logs);
-          }
+      // Se o helper Python falhar ou não estiver disponível, tenta fallback via serialport do Node
+      if (serialportModule) {
+        log('Tentando fallback via driver serial nativo...');
+        try {
+          const sp = new serialportModule(port, {
+            baudRate: 115200,
+            autoOpen: false
+          });
 
-          log(`Porta ${port} aberta. Gravando tally-settings.ini...`);
-          sp.write('\r\nfile.remove("tally-settings.ini")\r\n');
-          
-          setTimeout(() => {
-            sp.write('f = file.open("tally-settings.ini", "w")\r\n');
-
-            const buffer = Buffer.from(iniContent, 'utf-8');
-            const chunkSize = 90;
-            let offset = 0;
-
-            function sendNextChunk() {
-              if (offset < buffer.length) {
-                const chunk = buffer.slice(offset, offset + chunkSize);
-                const b64 = chunk.toString('base64');
-                sp.write(`f:write(encoder.fromBase64("${b64}"))\r\n`);
-                offset += chunk.length;
-                setTimeout(sendNextChunk, 80);
-              } else {
-                sp.write('f:close()\r\n');
-                log('Arquivo gravado. Reiniciando a placa...');
-                setTimeout(() => {
-                  sp.write('node.restart()\r\n');
-                  setTimeout(() => {
-                    try { sp.close(); } catch (e) {}
-                    log('Placa reiniciada com as novas configurações.');
-                    resolve({ success: true, logs });
-                  }, 1200);
-                }, 300);
-              }
+          sp.open((err) => {
+            if (err) {
+              log(`Falha ao abrir ${port} via serial nativo: ${err.message}`);
+              return resolve({ success: false, logs, message: err.message });
             }
 
-            setTimeout(sendNextChunk, 100);
-          }, 200);
-        });
-        return;
-      } catch (err) {
-        log(`Exceção serial nativa: ${err.message}. Tentando helper Python...`);
-      }
-    }
+            log(`Porta ${port} aberta. Gravando tally-settings.ini...`);
+            sp.write('\r\nfile.remove("tally-settings.ini")\r\n');
+            
+            setTimeout(() => {
+              sp.write('f = file.open("tally-settings.ini", "w")\r\n');
 
-    flashViaPython(port, iniContent, log, resolve, logs);
+              const buffer = Buffer.from(iniContent, 'utf-8');
+              const chunkSize = 90;
+              let offset = 0;
+
+              function sendNextChunk() {
+                if (offset < buffer.length) {
+                  const chunk = buffer.slice(offset, offset + chunkSize);
+                  const b64 = chunk.toString('base64');
+                  sp.write(`f:write(encoder.fromBase64("${b64}"))\r\n`);
+                  offset += chunk.length;
+                  setTimeout(sendNextChunk, 80);
+                } else {
+                  sp.write('f:close()\r\n');
+                  log('Arquivo gravado. Reiniciando a placa...');
+                  setTimeout(() => {
+                    sp.write('node.restart()\r\n');
+                    setTimeout(() => {
+                      try { sp.close(); } catch (e) {}
+                      log('Placa reiniciada com as novas configurações.');
+                      resolve({ success: true, logs });
+                    }, 1200);
+                  }, 300);
+                }
+              }
+
+              setTimeout(sendNextChunk, 100);
+            }, 200);
+          });
+          return;
+        } catch (err) {
+          log(`Exceção serial nativa: ${err.message}`);
+        }
+      }
+
+      resolve(pyRes || { success: false, logs, message: 'Falha na gravação serial.' });
+    }, logs);
   });
 }
 
-function flashViaPython(port, iniContent, log, resolve, logs) {
-  // Salvar arquivo temporário
-  const tempIni = path.join(process.cwd(), 'temp_tally_settings.ini');
-  fs.writeFileSync(tempIni, iniContent, 'utf-8');
+function findConfiguratorServer() {
+  const candidateScripts = [
+    path.join(path.dirname(process.execPath), 'configurator', 'configurator_server.py'),
+    path.join(process.cwd(), 'configurator', 'configurator_server.py'),
+    path.join(__dirname, '../../configurator/configurator_server.py'),
+    'D:\\tally-light\\configurator\\configurator_server.py',
+    'D:\\vTally-Studio-Release\\configurator\\configurator_server.py'
+  ];
+  for (const s of candidateScripts) {
+    if (fs.existsSync(s)) return s;
+  }
+  return null;
+}
 
-  const pyScript = path.join('c:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally', 'configurator_server.py');
-  if (fs.existsSync(pyScript)) {
-    exec(`python -c "from configurator_server import upload_ini_to_esp; ok, l = upload_ini_to_esp('${port}', open('${tempIni.replace(/\\/g, '\\\\')}', 'r', encoding='utf-8').read()); print('RESULT_OK' if ok else 'RESULT_FAIL'); [print('LOG:', x) for x in l]"`, 
-      { timeout: 15000 },
-      (err, stdout, stderr) => {
-        try { fs.unlinkSync(tempIni); } catch (e) {}
-        if (stdout) {
-          const lines = stdout.split(/\r?\n/).filter(Boolean);
-          for (const l of lines) {
-            if (l.startsWith('LOG: ')) log(l.slice(5));
-          }
-          if (stdout.includes('RESULT_OK')) {
-            log('Gravado com sucesso no ESP8266.');
-            return resolve({ success: true, logs });
-          }
+function flashViaPython(port, iniContent, log, resolve, logs) {
+  const tempIni = path.join(process.cwd(), 'temp_tally_settings.ini');
+  try {
+    fs.writeFileSync(tempIni, iniContent, 'utf-8');
+  } catch (e) {
+    log(`Aviso ao criar arquivo temporário: ${e.message}`);
+  }
+
+  const pyScript = findConfiguratorServer();
+  if (pyScript) {
+    const pyDir = path.dirname(pyScript);
+    const escapedTemp = tempIni.replace(/\\/g, '\\\\');
+    const cmd = `python -c "import sys; sys.path.insert(0, r'${pyDir}'); from configurator_server import upload_ini_to_esp; ok, l = upload_ini_to_esp('${port}', open(r'${escapedTemp}', 'r', encoding='utf-8').read()); print('RESULT_OK' if ok else 'RESULT_FAIL'); [print('LOG:', x) for x in l]"`;
+    exec(cmd, { timeout: 45000 }, (err, stdout, stderr) => {
+      try { fs.unlinkSync(tempIni); } catch (e) {}
+      if (stdout) {
+        const lines = stdout.split(/\r?\n/).filter(Boolean);
+        for (const l of lines) {
+          if (l.startsWith('LOG: ')) log(l.slice(5));
         }
-        log('Aviso: Configurações salvas localmente no tally-settings.ini.');
-        resolve({ success: true, logs });
+        if (stdout.includes('RESULT_OK')) {
+          log('Gravado e compilado com sucesso no ESP8266.');
+          return resolve({ success: true, logs });
+        }
       }
-    );
+      if (err) {
+        log(`Erro de execução serial: ${err.message}`);
+      }
+      log('Falha na gravação serial via helper Python.');
+      resolve({ success: false, logs, message: 'Falha na comunicação serial com a placa.' });
+    });
   } else {
     try { fs.unlinkSync(tempIni); } catch (e) {}
-    log('Configurações salvas localmente no tally-settings.ini.');
-    resolve({ success: true, logs });
+    log('Script configurator_server.py não encontrado.');
+    resolve({ success: false, logs, message: 'Script configurator_server.py não encontrado.' });
   }
 }
 
@@ -257,15 +287,16 @@ function findFirmwareFiles() {
     path.join(path.dirname(process.execPath), 'firmware'),
     path.join(process.cwd(), 'firmware'),
     path.join(__dirname, '../firmware'),
-    'c:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\vTally-Studio\\firmware',
-    'c:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\unpacked_asar\\firmware'
+    path.join(__dirname, '../../firmware'),
+    'D:\\vTally-Studio-Release\\firmware',
+    'D:\\tally-light\\firmware'
   ];
 
   for (const dir of candidateDirs) {
     const fw = path.join(dir, 'nodemcu_firmware.bin');
     const spiffs = path.join(dir, 'full_spiffs_patched.bin');
     if (fs.existsSync(fw) && fs.existsSync(spiffs)) {
-      return { fw, spiffs };
+      return { fw, spiffs, dir };
     }
   }
   return null;
@@ -291,9 +322,9 @@ function flashFullToBoard(port, config) {
 
     const runEsptool = (baud) => {
       return new Promise((resBaud) => {
-        const cmd = `python -m esptool --port ${port} --baud ${baud} write_flash 0x00000 "${fwFiles.fw}" 0x80000 "${fwFiles.spiffs}"`;
+        const cmd = `python -m esptool --chip esp8266 --port ${port} --baud ${baud} write_flash --flash_mode dio --flash_size 4MB 0x00000 "${fwFiles.fw}" 0x80000 "${fwFiles.spiffs}"`;
         log(`Executando gravação a ${baud} baud...`);
-        exec(cmd, { timeout: 65000 }, (err, stdout, stderr) => {
+        exec(cmd, { timeout: 75000 }, (err, stdout, stderr) => {
           if (stdout) {
             const outLines = stdout.split(/\r?\n/).filter(Boolean);
             for (const l of outLines) {
@@ -319,7 +350,7 @@ function flashFullToBoard(port, config) {
     }
 
     if (!esptoolRes.success) {
-      log('Erro ao gravar com esptool. Verifique o cabo e certifique-se de que a porta serial não está em uso.');
+      log('Erro ao gravar com esptool. Verifique o cabo e certifique-se de que a placa ESP8266 está conectada na porta USB.');
       return resolve({ success: false, logs, message: 'Falha na gravação com esptool.' });
     }
 
@@ -337,20 +368,31 @@ function flashFullToBoard(port, config) {
       iniRes.logs.forEach(l => log(l));
     }
 
-    log('Gravação e configuração inicial concluídas com sucesso!');
-    resolve({ success: true, logs, message: 'Placa virgem gravada e configurada com sucesso!' });
+    if (iniRes.success) {
+      log('Gravação e configuração inicial concluídas com sucesso!');
+      resolve({ success: true, logs, message: 'Placa virgem gravada e configurada com sucesso!' });
+    } else {
+      log('Aviso: Firmware gravado, mas ocorreu erro na configuração serial inicial.');
+      resolve({ success: false, logs, message: 'Firmware gravado, mas falhou ao gravar configurações seriais.' });
+    }
   });
 }
 
 function setupRoutes(app, obsBridge, tallyContainer) {
   // 1. Tela de configuração HTML (unifica /flasher também)
   app.get(['/flasher', '/tally-setup', '/setup', '/configurador'], (req, res) => {
-    const setupPath = path.join(__dirname, '../node_modules/vtally/src/frontend/setup.html');
-    if (fs.existsSync(setupPath)) {
-      res.sendFile(setupPath);
-    } else {
-      res.sendFile(path.join('c:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally', 'index.html'));
+    const candidateHtmls = [
+      path.join(path.dirname(process.execPath), 'configurator', 'index.html'),
+      path.join(process.cwd(), 'configurator', 'index.html'),
+      path.join(__dirname, '../../configurator/index.html'),
+      'D:\\tally-light\\configurator\\index.html',
+      'D:\\vTally-Studio-Release\\configurator\\index.html',
+      path.join(__dirname, '../node_modules/vtally/src/frontend/setup.html')
+    ];
+    for (const h of candidateHtmls) {
+      if (fs.existsSync(h)) return res.sendFile(h);
     }
+    res.status(404).send('Tela de configuração não encontrada.');
   });
 
   // 2. Lista de Portas COM
@@ -436,15 +478,30 @@ function setupRoutes(app, obsBridge, tallyContainer) {
   app.get('/api/status', (req, res) => {
     let isOnline = false;
     let tallyIp = '';
-    let tallyName = 'Cam4';
+    const queryName = (req.query.name || '').trim();
+    let tallyName = queryName || 'Cam4';
+    let allTallies = [];
 
     if (tallyContainer) {
       const udpTallies = tallyContainer.getUdpTallies ? tallyContainer.getUdpTallies() : [];
-      const connected = udpTallies.find(t => t.isActive && t.isActive());
-      if (connected) {
-        isOnline = true;
-        tallyIp = connected.address || '';
-        tallyName = connected.name || 'Cam4';
+      allTallies = udpTallies.map(t => ({
+        name: t.name,
+        ip: t.address || '',
+        active: !!(t.isActive && t.isActive()),
+        state: t.state
+      }));
+
+      let matched = null;
+      if (queryName) {
+        matched = udpTallies.find(t => t.name.toLowerCase() === queryName.toLowerCase());
+      }
+      if (!matched) {
+        matched = udpTallies.find(t => t.isActive && t.isActive());
+      }
+      if (matched) {
+        isOnline = !!(matched.isActive && matched.isActive());
+        tallyIp = matched.address || '';
+        tallyName = matched.name;
       }
     }
 
@@ -456,6 +513,7 @@ function setupRoutes(app, obsBridge, tallyContainer) {
       is_online: isOnline,
       ip: tallyIp,
       name: tallyName,
+      tallies: allTallies,
       obs_connected: !!obsStatus.obsConnected,
       current_program: obsStatus.currentProgram || '',
       current_preview: obsStatus.currentPreview || ''
@@ -494,7 +552,7 @@ function setupRoutes(app, obsBridge, tallyContainer) {
   app.post('/api/test-led', (req, res) => {
     hookContainerForTesting();
 
-    const { color, duration } = req.body || {};
+    const { color, duration, name: targetName } = req.body || {};
     const testDuration = parseInt(duration, 10) || 10000; // 10 segundos por padrão
 
     let targetIp = '192.168.1.50';
@@ -509,7 +567,16 @@ function setupRoutes(app, obsBridge, tallyContainer) {
 
     if (tallyContainer) {
       const udpTallies = tallyContainer.getUdpTallies ? tallyContainer.getUdpTallies() : [];
-      const connected = udpTallies.find(t => t.isActive && t.isActive());
+      let connected = null;
+      if (targetName) {
+        connected = udpTallies.find(t => t.name.toLowerCase() === targetName.toLowerCase() && t.isActive && t.isActive());
+        if (!connected) {
+          connected = udpTallies.find(t => t.name.toLowerCase() === targetName.toLowerCase());
+        }
+      }
+      if (!connected) {
+        connected = udpTallies.find(t => t.isActive && t.isActive());
+      }
       if (connected && connected.address) {
         targetIp = connected.address;
         targetPort = connected.port || targetPort;

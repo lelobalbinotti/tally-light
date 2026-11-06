@@ -57,7 +57,7 @@ const myTallyContainer = new TallyContainer_1.default(myConfiguration, myEmitter
 new UdpTallyDriver_1.default(myConfiguration, myTallyContainer);
 const myWebTallyDriver = new WebTallyDriver_1.default(myConfiguration, myTallyContainer);
 const myMixerDriver = new MixerDriver_1.MixerDriver(myConfiguration, myEmitter);
-const myNodeMcuConnector = new NodeMcuConnector_1.default();
+const myNodeMcuConnector = null;
 // log stuff
 myEmitter.on('tally.logged', ({ tally, log }) => {
     let fn = console.info;
@@ -297,20 +297,15 @@ io.on('connection', (socket) => {
         configuration.fromJson(conf);
         myConfiguration.setTallyConfiguration(configuration);
     });
+    // Desativado myNodeMcuConnector para nao travar as portas seriais COM
     socket.on('flasher.device.get', () => {
-        myNodeMcuConnector.getDevice().then(device => {
-            socket.emit('flasher.device', device.toJson());
-        });
+        // no-op
     });
     socket.on('flasher.settingsIni', (path, settingsIniString) => {
-        myNodeMcuConnector.writeTallySettingsIni(path, settingsIniString, (state) => {
-            socket.emit('flasher.settingsIni.progress', state);
-        });
+        // no-op
     });
     socket.on('flasher.program', (path) => {
-        myNodeMcuConnector.program(path, (state) => {
-            socket.emit('flasher.program.progress', state);
-        });
+        // no-op
     });
 });
 if (myConfiguration.isDev()) {

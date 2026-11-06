@@ -99,7 +99,8 @@ _G.MyTally = {
     end,
 }
 
-tmr.create():alarm(1000, tmr.ALARM_AUTO, function()
+local tallyKeepAliveTimer = tmr.create()
+tallyKeepAliveTimer:alarm(1000, tmr.ALARM_AUTO, function()
     if MyWifi ~= nil and MyWifi.isConnected() then
         -- check if we seemed to have lost connection to the base station
         if not MyTally:isConnected() then

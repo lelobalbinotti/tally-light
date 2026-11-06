@@ -14,7 +14,6 @@ let scenesList = [];
 let isStreaming = false;
 let isRecording = false;
 let isStudioMode = true;
-let isObsConnected = false;
 let clients = new Set();
 let obsWs = null;
 let reconnectTimer = null;
@@ -35,10 +34,6 @@ try {
   });
 
   wss.on('connection', (ws) => {
-    if (!isObsConnected) {
-      try { ws.terminate(); } catch (e) {}
-      return;
-    }
     clients.add(ws);
     console.log('[Bridge Embutida] vTally Hub conectou no servidor v4.');
 
@@ -164,7 +159,6 @@ function connectObsV5() {
       // Identificado com sucesso no OBS v5
       else if (msg.op === 2) {
         console.log('[Bridge Embutida] Autenticado e ouvindo eventos do OBS Studio 30.');
-        isObsConnected = true;
         // Requisita estado inicial completo
         obsWs.send(JSON.stringify({
           op: 6,
@@ -310,33 +304,12 @@ function connectObsV5() {
     }
   });
 
-  const handleObsDisconnect = () => {
-    if (isObsConnected) {
-      console.log('[Bridge Embutida] Conexão com OBS Studio perdida.');
-    }
-    isObsConnected = false;
-    currentProgramScene = "";
-    currentPreviewScene = "";
-    scenesList = [];
-    isStreaming = false;
-    isRecording = false;
-
-    // Desconecta imediatamente os clientes v4 (vTally Hub) para atualizar o estado do mixer
-    for (const client of clients) {
-      try { client.terminate(); } catch (e) {}
-    }
-    clients.clear();
-
-    scheduleReconnect();
-  };
-
   obsWs.on('error', (err) => {
     console.error('[Bridge Embutida] Erro no socket OBS v5:', err.message);
-    handleObsDisconnect();
   });
 
   obsWs.on('close', () => {
-    handleObsDisconnect();
+    scheduleReconnect();
   });
 }
 
@@ -365,9 +338,8 @@ connectObsV5();
 module.exports = {
   setTarget,
   getTarget: () => ({ ip: targetObsIp, port: targetObsPort }),
-  isObsConnected: () => isObsConnected,
   getStatus: () => ({
-    obsConnected: isObsConnected,
+    obsConnected: obsWs && obsWs.readyState === WebSocket.OPEN,
     currentProgram: currentProgramScene,
     currentPreview: currentPreviewScene,
   })

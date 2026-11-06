@@ -18,7 +18,8 @@ local createLog = function(severity)
 end
 
 -- make sure that buffered logs are sent out once the tally is connected
-tmr.create():alarm(50, tmr.ALARM_AUTO, function()
+local logBufferTimer = tmr.create()
+logBufferTimer:alarm(50, tmr.ALARM_AUTO, function()
     if buffer:hasLog() and MyTally and MyTally.isReady() and MyTally.isConnected() and MyWifi and MyWifi.isConnected() then
         local severity, msg = buffer:getLog()
         MyTally:sendLog(severity, msg)
