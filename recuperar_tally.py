@@ -155,6 +155,19 @@ def run_esptool_flash(port, fw_path, spiffs_path):
 
     return False
 
+def send_wait_prompt(ser, cmd, timeout=3.5):
+    ser.write(cmd.encode('ascii') + b'\r\n')
+    start = time.time()
+    resp = b""
+    while time.time() - start < timeout:
+        if ser.in_waiting:
+            c = ser.read(ser.in_waiting)
+            resp += c
+            if b"> " in resp or resp.endswith(b">"):
+                return True, resp.decode('latin1', errors='replace')
+        time.sleep(0.01)
+    return False, resp.decode('latin1', errors='replace')
+
 def upload_file_hex(ser, local_path, remote_name):
     if not os.path.exists(local_path):
         return False
@@ -162,41 +175,29 @@ def upload_file_hex(ser, local_path, remote_name):
         data = f.read()
 
     lc_name = remote_name.replace(".lua", ".lc")
-    ser.write(f'file.remove("{remote_name}"); file.remove("{lc_name}")\r\n'.encode('ascii'))
-    time.sleep(0.12)
-    if ser.in_waiting:
-        ser.read(ser.in_waiting)
-
-    ser.write(f'f = file.open("{remote_name}", "w")\r\n'.encode('ascii'))
-    time.sleep(0.1)
+    send_wait_prompt(ser, f'file.remove("{remote_name}"); file.remove("{lc_name}")')
+    ok, _ = send_wait_prompt(ser, f'f = file.open("{remote_name}", "w")')
+    if not ok:
+        return False
 
     chunk_size = 64
     for i in range(0, len(data), chunk_size):
         chunk = data[i:i+chunk_size]
         h = chunk.hex()
-        ser.write(f'f:write(encoder.fromHex("{h}"))\r\n'.encode('ascii'))
-        time.sleep(0.04)
-        if ser.in_waiting > 128:
-            ser.read(ser.in_waiting)
+        ok, _ = send_wait_prompt(ser, f'f:write(encoder.fromHex("{h}"))')
+        if not ok:
+            send_wait_prompt(ser, 'f:close()')
+            return False
 
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.25)
-    if ser.in_waiting:
-        ser.read(ser.in_waiting)
+    send_wait_prompt(ser, 'f:close()')
 
-    ser.write(f'node.compile("{remote_name}")\r\n'.encode('ascii'))
-    compile_wait = 2.2 if "led" in remote_name else 1.2
-    time.sleep(compile_wait)
-
-    ser.reset_input_buffer()
-    ser.write(f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))\r\n'.encode('ascii'))
-    time.sleep(0.35)
-    check_resp = ser.read(512).decode('latin1', errors='replace')
+    send_wait_prompt(ser, f'node.compile("{remote_name}")', timeout=5.0)
+    ok, check_resp = send_wait_prompt(ser, f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))')
     if "true" in check_resp:
-        ser.write(f'file.remove("{remote_name}")\r\n'.encode('ascii'))
-        time.sleep(0.08)
+        send_wait_prompt(ser, f'file.remove("{remote_name}")')
+        print(f"  [OK] {lc_name} compilado com sucesso.")
     else:
-        print(f"  [Aviso] {lc_name} nao confirmado, mantendo {remote_name} para execucao direta.")
+        print(f"  [Aviso] {lc_name} mantido em lua para execucao direta.")
     return True
 
 def write_tally_ini(port, cfg):
@@ -258,7 +259,7 @@ def write_tally_ini(port, cfg):
     # 2. Gravar e compilar modulos essenciais otimizados (settings, tally timer, log timer, led 25 leds)
     settings_file = find_settings_lua()
     fw_dir = os.path.dirname(settings_file) if settings_file else ""
-    modules = ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-led.lua"]
+    modules = ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-wifi.lua", "my-led.lua"]
     for mod in modules:
         mod_path = os.path.join(fw_dir, mod)
         if os.path.exists(mod_path):
@@ -271,26 +272,21 @@ def write_tally_ini(port, cfg):
 ws2812.write(string.char(0):rep(75))
 dofile("my-app.lc")
 """
-    ser.write(b'file.remove("init.lua")\r\n')
-    time.sleep(0.15)
-    ser.write(b'pcall(function() file.remove("init.bak") end)\r\n')
-    time.sleep(0.1)
-    ser.write(b'f = file.open("init.lua", "w")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.2)
+    send_wait_prompt(ser, 'file.remove("init.lua")')
+    send_wait_prompt(ser, 'pcall(function() file.remove("init.bak") end)')
+    send_wait_prompt(ser, 'f = file.open("init.lua", "w")')
+    send_wait_prompt(ser, f'f:write(encoder.fromHex("{init_code.hex()}"))')
+    send_wait_prompt(ser, 'f:close()')
 
     # 3. Gravar tally-settings.ini
     lines = [
         f"tally.name={cfg.get('name', 'Cam1')}",
-        f"station.ssid={cfg.get('ssid', 'Entrevero')}",
-        f"station.password={cfg.get('password', 'garpao03')}",
+        f"station.ssid={cfg.get('ssid', '')}",
+        f"station.password={cfg.get('password', '')}",
         f"station.ip={cfg.get('static_ip', '')}",
         f"station.gateway={cfg.get('gateway', '')}",
         f"station.netmask={cfg.get('netmask', '')}",
-        f"hub.ip={cfg.get('hub_ip', '192.168.1.50')}",
+        f"hub.ip={cfg.get('hub_ip', '192.168.1.100')}",
         f"hub.port={cfg.get('hub_port', 7411)}",
         f"operator.type={cfg.get('operator_type', 'grb-')}",
         f"stage.type=grb-",
@@ -299,24 +295,13 @@ dofile("my-app.lc")
         f"brightness={cfg.get('brightness', 20)}",
         ""
     ]
-    ini_content = "\r\n".join(lines)
+    ini_content = "\r\n".join(lines).encode('utf-8')
 
     print("Gravando tally-settings.ini...")
-    ser.write(b'file.remove("tally-settings.ini")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f = file.open("tally-settings.ini", "w")\r\n')
-    time.sleep(0.15)
-
-    for line in ini_content.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        escaped = line.replace('\\', '\\\\').replace('"', '\\"')
-        ser.write(f'f:write("{escaped}\\r\\n")\r\n'.encode('utf-8'))
-        time.sleep(0.05)
-
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.3)
+    send_wait_prompt(ser, 'file.remove("tally-settings.ini")')
+    send_wait_prompt(ser, 'f = file.open("tally-settings.ini", "w")')
+    send_wait_prompt(ser, f'f:write(encoder.fromHex("{ini_content.hex()}"))')
+    send_wait_prompt(ser, 'f:close()')
     print("Configuracoes gravadas com sucesso.")
 
     # 4. Reiniciar a placa e monitorar Wi-Fi
@@ -408,8 +393,8 @@ def main():
             print("e instalar a versao otimizada para a matriz de 25 LEDs.\n")
 
             cam_name = input("Nome da Camera (ex: Cam1, Cam2, Cam3) [Cam1]: ").strip() or "Cam1"
-            ssid = input("Nome da Rede Wi-Fi (SSID) [Entrevero]: ").strip() or "Entrevero"
-            password = input("Senha da Rede Wi-Fi [garpao03]: ").strip() or "garpao03"
+            ssid = input("Nome da Rede Wi-Fi (SSID): ").strip()
+            password = input("Senha da Rede Wi-Fi: ").strip()
             hub_ip = input(f"IP do Computador rodando o vTally Hub [{local_ip}]: ").strip() or local_ip
             
             print("\nTipo do LED do Operador:")
@@ -447,8 +432,8 @@ def main():
 
         elif opcao == "2":
             cam_name = input("Nome da Camera [Cam1]: ").strip() or "Cam1"
-            ssid = input("Nome do Wi-Fi [Entrevero]: ").strip() or "Entrevero"
-            password = input("Senha do Wi-Fi [garpao03]: ").strip() or "garpao03"
+            ssid = input("Nome do Wi-Fi (SSID): ").strip()
+            password = input("Senha do Wi-Fi: ").strip()
             hub_ip = input(f"IP do Hub [{local_ip}]: ").strip() or local_ip
 
             cfg = {

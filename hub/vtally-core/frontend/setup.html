@@ -744,11 +744,11 @@
         <div class="static-ip-box" id="box-static-ip">
           <div class="form-group">
             <label for="inp-ip">IP do Tally</label>
-            <input type="text" id="inp-ip" value="192.168.3.79">
+            <input type="text" id="inp-ip" placeholder="Ex: 192.168.1.75">
           </div>
           <div class="form-group">
             <label for="inp-gw">Gateway (Roteador)</label>
-            <input type="text" id="inp-gw" value="192.168.3.1">
+            <input type="text" id="inp-gw" placeholder="Ex: 192.168.1.1">
           </div>
         </div>
 
@@ -756,7 +756,7 @@
         <div class="static-ip-box" style="border-style: solid;">
           <div class="form-group">
             <label for="inp-hub-ip">IP do vTally Hub</label>
-            <input type="text" id="inp-hub-ip" value="192.168.3.96">
+            <input type="text" id="inp-hub-ip" placeholder="Ex: 192.168.1.100">
           </div>
           <div class="form-group">
             <label for="inp-hub-port">Porta UDP</label>
@@ -1065,15 +1065,15 @@
         const data = await res.json();
         if (data.config) {
           const c = data.config;
-          document.getElementById('inp-name').value = c.tally_name || 'Cam4';
+          document.getElementById('inp-name').value = c.tally_name || 'Cam1';
           document.getElementById('inp-ssid').value = c.ssid || '';
           document.getElementById('inp-password').value = c.password || '';
-          document.getElementById('inp-ip').value = c.static_ip || '192.168.3.79';
-          document.getElementById('inp-gw').value = c.gateway || '192.168.3.1';
-          document.getElementById('inp-hub-ip').value = c.hub_ip || '192.168.3.96';
+          document.getElementById('inp-ip').value = c.static_ip || '';
+          document.getElementById('inp-gw').value = c.gateway || '';
+          document.getElementById('inp-hub-ip').value = c.hub_ip || '';
           document.getElementById('inp-hub-port').value = c.hub_port || 7411;
           setBrightness(c.brightness || 5);
-          setIpMode(c.ip_mode || 'static');
+          setIpMode(c.ip_mode || 'dhcp');
           setOpType(c.operator_mode || c.operator_type || 'grb-');
         }
       } catch (e) {

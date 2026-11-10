@@ -27,14 +27,14 @@ function getIniPath() {
 
 function parseIni(content) {
   const result = {
-    tally_name: 'Cam4',
+    tally_name: 'Cam1',
     ssid: '',
     password: '',
     ip_mode: 'dhcp',
     static_ip: '',
     gateway: '',
     netmask: '255.255.255.0',
-    hub_ip: '192.168.1.100',
+    hub_ip: '',
     hub_port: 7411,
     brightness: 5,
     operator_type: 'grb-',
@@ -107,13 +107,13 @@ function generateIni(config) {
   }
 
   return [
-    `tally.name=${config.tally_name || 'Cam4'}`,
+    `tally.name=${config.tally_name || 'Cam1'}`,
     `station.ssid=${config.ssid || ''}`,
     `station.password=${config.password || ''}`,
     `station.ip=${staticIp}`,
     `station.gateway=${gateway}`,
     `station.netmask=${netmask}`,
-    `hub.ip=${config.hub_ip || '192.168.1.100'}`,
+    `hub.ip=${config.hub_ip || ''}`,
     `hub.port=${config.hub_port || 7411}`,
     `operator.type=${opType}`,
     `operator.ws2812=${opWs}`,

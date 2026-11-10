@@ -81,7 +81,7 @@ def parse_ini_file(path):
 
 def write_ini_file(path, cfg):
     lines = [
-        f"tally.name={cfg.get('tally_name', 'Cam4')}",
+        f"tally.name={cfg.get('tally_name', 'Cam1')}",
         f"station.ssid={cfg.get('ssid', '')}",
         f"station.password={cfg.get('password', '')}",
     ]
@@ -94,7 +94,7 @@ def write_ini_file(path, cfg):
         lines.append("station.gateway=")
         lines.append("station.netmask=")
         
-    lines.append(f"hub.ip={cfg.get('hub_ip', '192.168.1.50')}")
+    lines.append(f"hub.ip={cfg.get('hub_ip', '')}")
     lines.append(f"hub.port={cfg.get('hub_port', 7411)}")
 
     op_mode = cfg.get("operator_mode") or cfg.get("operator_type", "grb-")
