@@ -146,10 +146,7 @@ local showFlashPattern = function(operatorR, operatorG, operatorB, stageR, stage
         if isBright then
             showColor(operatorR, operatorG, operatorB, stageR, stageG, stageB)
         else
-            showColor(
-                math.ceil(operatorR * 0.3), math.ceil(operatorG * 0.3), math.ceil(operatorB * 0.3),
-                math.ceil((stageR or 0) * 0.3), math.ceil((stageG or 0) * 0.3), math.ceil((stageB or 0) * 0.3)
-            )
+            showColor(0, 0, 0, 0, 0, 0)
         end
         currentIdx = currentIdx + 1
         if currentIdx > maxIdx then currentIdx = 1 end
