@@ -163,7 +163,7 @@ def upload_file_hex(ser, local_path, remote_name):
 
     lc_name = remote_name.replace(".lua", ".lc")
     ser.write(f'file.remove("{remote_name}"); file.remove("{lc_name}")\r\n'.encode('ascii'))
-    time.sleep(0.15)
+    time.sleep(0.12)
     if ser.in_waiting:
         ser.read(ser.in_waiting)
 
@@ -181,17 +181,26 @@ def upload_file_hex(ser, local_path, remote_name):
 
     ser.write(b'f:close()\r\n')
     time.sleep(0.25)
-
-    ser.write(f'node.compile("{remote_name}")\r\n'.encode('ascii'))
-    time.sleep(1.2)
-    ser.write(f'file.remove("{remote_name}")\r\n'.encode('ascii'))
-    time.sleep(0.15)
     if ser.in_waiting:
         ser.read(ser.in_waiting)
+
+    ser.write(f'node.compile("{remote_name}")\r\n'.encode('ascii'))
+    compile_wait = 2.2 if "led" in remote_name else 1.2
+    time.sleep(compile_wait)
+
+    ser.reset_input_buffer()
+    ser.write(f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))\r\n'.encode('ascii'))
+    time.sleep(0.35)
+    check_resp = ser.read(512).decode('latin1', errors='replace')
+    if "true" in check_resp:
+        ser.write(f'file.remove("{remote_name}")\r\n'.encode('ascii'))
+        time.sleep(0.08)
+    else:
+        print(f"  [Aviso] {lc_name} nao confirmado, mantendo {remote_name} para execucao direta.")
     return True
 
 def write_tally_ini(port, cfg):
-    print(f"\nConectando a {port} a 115200 baud para configurar a placa...")
+    print(f"\nConectando a {port} a 115200 baud para preparar a placa...")
     try:
         ser = serial.Serial()
         ser.port = port
@@ -206,29 +215,45 @@ def write_tally_ini(port, cfg):
         print(f"Erro ao abrir {port}: {e}")
         return False
 
-    print("Aguardando estabilizacao do sistema (2.5 segundos)...")
-    time.sleep(2.5)
+    time.sleep(0.8)
     ser.reset_input_buffer()
     ser.reset_output_buffer()
-    ser.write(b"\r\n")
-    time.sleep(0.3)
+
+    # 1. Reiniciar em modo limpo para liberar memoria RAM (>40KB)
+    print("Reiniciando ESP8266 em modo limpo para liberar memoria RAM...")
+    clean_cmd = b'for i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); pcall(function() file.rename("init.lua", "init.bak") end); node.restart()\r\n'
+    try:
+        ser.write(clean_cmd)
+        time.sleep(0.8)
+        ser.close()
+    except Exception:
+        try: ser.close()
+        except Exception: pass
+
+    time.sleep(2.8)
+
+    print(f"Reconectando a {port} com prompt puro...")
+    try:
+        ser = serial.Serial()
+        ser.port = port
+        ser.baudrate = 115200
+        ser.timeout = 1.0
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+        ser.setDTR(False)
+        ser.setRTS(False)
+    except Exception as e:
+        print(f"Erro ao reconectar a {port}: {e}")
+        return False
+
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    ser.write(b"\r\ncollectgarbage()\r\n")
+    time.sleep(0.2)
     if ser.in_waiting:
         ser.read(ser.in_waiting)
-
-    # 1. Atualizar init.lua com inicializacao limpa (evita flash branco)
-    print("Gravando init.lua com rotina de inicializacao limpa...")
-    init_code = b"""ws2812.init(ws2812.MODE_SINGLE)
-ws2812.write(string.char(0):rep(75))
-dofile("my-app.lc")
-"""
-    ser.write(b'file.remove("init.lua")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f = file.open("init.lua", "w")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.2)
 
     # 2. Gravar e compilar modulos essenciais otimizados (settings, tally timer, log timer, led 25 leds)
     settings_file = find_settings_lua()
@@ -239,6 +264,23 @@ dofile("my-app.lc")
         if os.path.exists(mod_path):
             print(f"Gravando e compilando {mod} otimizado...")
             upload_file_hex(ser, mod_path, mod)
+
+    # 3. Atualizar init.lua com inicializacao limpa (evita flash branco)
+    print("Gravando init.lua com rotina de inicializacao limpa (sem flash branco)...")
+    init_code = b"""ws2812.init(ws2812.MODE_SINGLE)
+ws2812.write(string.char(0):rep(75))
+dofile("my-app.lc")
+"""
+    ser.write(b'file.remove("init.lua")\r\n')
+    time.sleep(0.15)
+    ser.write(b'pcall(function() file.remove("init.bak") end)\r\n')
+    time.sleep(0.1)
+    ser.write(b'f = file.open("init.lua", "w")\r\n')
+    time.sleep(0.15)
+    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
+    time.sleep(0.15)
+    ser.write(b'f:close()\r\n')
+    time.sleep(0.2)
 
     # 3. Gravar tally-settings.ini
     lines = [

@@ -233,8 +233,16 @@ function flashIniToBoard(port, iniContent) {
 function findConfiguratorServer() {
   const candidateScripts = [
     path.join(path.dirname(process.execPath), 'configurator', 'configurator_server.py'),
+    path.join(path.dirname(process.execPath), '..', 'configurator', 'configurator_server.py'),
+    path.join(path.dirname(process.execPath), '..', 'repo_tally_light', 'configurator', 'configurator_server.py'),
     path.join(process.cwd(), 'configurator', 'configurator_server.py'),
+    path.join(process.cwd(), 'repo_tally_light', 'configurator', 'configurator_server.py'),
     path.join(__dirname, '../../configurator/configurator_server.py'),
+    path.join(__dirname, '../../../configurator/configurator_server.py'),
+    path.join(__dirname, '../../repo_tally_light/configurator/configurator_server.py'),
+    path.join(__dirname, '../../../../repo_tally_light/configurator/configurator_server.py'),
+    'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\repo_tally_light\\configurator\\configurator_server.py',
+    'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\configurator\\configurator_server.py',
     'D:\\tally-light\\configurator\\configurator_server.py',
     'D:\\vTally-Studio-Release\\configurator\\configurator_server.py'
   ];
@@ -257,7 +265,7 @@ function flashViaPython(port, iniContent, log, resolve, logs) {
     const pyDir = path.dirname(pyScript);
     const escapedTemp = tempIni.replace(/\\/g, '\\\\');
     const cmd = `python -c "import sys; sys.path.insert(0, r'${pyDir}'); from configurator_server import upload_ini_to_esp; ok, l = upload_ini_to_esp('${port}', open(r'${escapedTemp}', 'r', encoding='utf-8').read()); print('RESULT_OK' if ok else 'RESULT_FAIL'); [print('LOG:', x) for x in l]"`;
-    exec(cmd, { timeout: 45000 }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: 75000 }, (err, stdout, stderr) => {
       try { fs.unlinkSync(tempIni); } catch (e) {}
       if (stdout) {
         const lines = stdout.split(/\r?\n/).filter(Boolean);
@@ -285,9 +293,17 @@ function flashViaPython(port, iniContent, log, resolve, logs) {
 function findFirmwareFiles() {
   const candidateDirs = [
     path.join(path.dirname(process.execPath), 'firmware'),
+    path.join(path.dirname(process.execPath), '..', 'firmware'),
+    path.join(path.dirname(process.execPath), '..', 'repo_tally_light', 'firmware'),
     path.join(process.cwd(), 'firmware'),
+    path.join(process.cwd(), 'repo_tally_light', 'firmware'),
     path.join(__dirname, '../firmware'),
     path.join(__dirname, '../../firmware'),
+    path.join(__dirname, '../../../firmware'),
+    path.join(__dirname, '../../repo_tally_light/firmware'),
+    path.join(__dirname, '../../../../repo_tally_light/firmware'),
+    'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\repo_tally_light\\firmware',
+    'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\firmware',
     'D:\\vTally-Studio-Release\\firmware',
     'D:\\tally-light\\firmware'
   ];
@@ -383,8 +399,16 @@ function setupRoutes(app, obsBridge, tallyContainer) {
   app.get(['/flasher', '/tally-setup', '/setup', '/configurador'], (req, res) => {
     const candidateHtmls = [
       path.join(path.dirname(process.execPath), 'configurator', 'index.html'),
+      path.join(path.dirname(process.execPath), '..', 'configurator', 'index.html'),
+      path.join(path.dirname(process.execPath), '..', 'repo_tally_light', 'configurator', 'index.html'),
       path.join(process.cwd(), 'configurator', 'index.html'),
+      path.join(process.cwd(), 'repo_tally_light', 'configurator', 'index.html'),
       path.join(__dirname, '../../configurator/index.html'),
+      path.join(__dirname, '../../../configurator/index.html'),
+      path.join(__dirname, '../../repo_tally_light/configurator/index.html'),
+      path.join(__dirname, '../../../../repo_tally_light/configurator/index.html'),
+      'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\repo_tally_light\\configurator\\index.html',
+      'C:\\Users\\lelo_\\.gemini\\antigravity\\scratch\\tally\\configurator\\index.html',
       'D:\\tally-light\\configurator\\index.html',
       'D:\\vTally-Studio-Release\\configurator\\index.html',
       path.join(__dirname, '../node_modules/vtally/src/frontend/setup.html')

@@ -137,6 +137,22 @@ def list_serial_ports():
         })
     return ports
 
+def find_firmware_dir():
+    candidates = [
+        os.path.join(BASE_DIR, "..", "firmware"),
+        os.path.join(BASE_DIR, "firmware"),
+        os.path.join(os.path.dirname(BASE_DIR), "firmware"),
+        os.path.join(os.path.dirname(BASE_DIR), "repo_tally_light", "firmware"),
+        r"C:\Users\lelo_\.gemini\antigravity\scratch\tally\repo_tally_light\firmware",
+        r"C:\Users\lelo_\.gemini\antigravity\scratch\tally\firmware",
+        r"D:\tally-light\firmware",
+        r"D:\vTally-Studio-Release\firmware"
+    ]
+    for d in candidates:
+        if os.path.exists(os.path.join(d, "my-led.lua")):
+            return os.path.abspath(d)
+    return None
+
 def upload_ini_to_esp(port, ini_content):
     logs = []
     def log(msg):
@@ -152,60 +168,71 @@ def upload_ini_to_esp(port, ini_content):
         ser.dtr = False
         ser.rts = False
         ser.open()
+        ser.setDTR(False)
+        ser.setRTS(False)
     except Exception as e:
         log(f"Erro ao abrir {port}: {e}")
         return False, logs
 
-    # Aguarda estabilização da porta e drena buffer
-    time.sleep(1.0)
+    # Aguarda estabilização inicial da porta
+    time.sleep(0.8)
     try:
-        ser.read(2048)
-    except Exception:
-        pass
-    
-    # Envia quebra de linha para limpar prompt
-    ser.write(b"\r\n")
-    time.sleep(0.3)
-    try:
-        ser.read(1024)
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
     except Exception:
         pass
 
-    log("Gravando init.lua com rotina de inicialização limpa...")
-    init_code = b"""ws2812.init(ws2812.MODE_SINGLE)
-ws2812.write(string.char(0):rep(75))
-dofile("my-app.lc")
-"""
-    ser.write(b'file.remove("init.lua")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f = file.open("init.lua", "w")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:close()\r\n')
+    # 1. Liberar memoria RAM no ESP8266 para permitir compilacao dos scripts
+    log("Preparando reinicializacao limpa do ESP8266 para liberar memoria RAM...")
+    clean_cmd = b'for i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); pcall(function() file.rename("init.lua", "init.bak") end); node.restart()\r\n'
+    try:
+        ser.write(clean_cmd)
+        time.sleep(0.8)
+        ser.close()
+    except Exception as e:
+        log(f"Aviso na preparacao limpa: {e}")
+        try:
+            ser.close()
+        except Exception:
+            pass
+
+    # Aguarda a placa reiniciar limpa sem my-app rodando na memoria
+    time.sleep(2.8)
+
+    log(f"Reconectando a {port} em modo limpo (heap livre)...")
+    try:
+        ser = serial.Serial()
+        ser.port = port
+        ser.baudrate = 115200
+        ser.timeout = 0.5
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+        ser.setDTR(False)
+        ser.setRTS(False)
+    except Exception as e:
+        log(f"Erro ao reconectar a {port}: {e}")
+        return False, logs
+
+    time.sleep(0.5)
+    ser.reset_input_buffer()
+    ser.reset_output_buffer()
+    ser.write(b"\r\ncollectgarbage()\r\n")
     time.sleep(0.2)
-    try:
-        ser.read(1024)
-    except Exception:
-        pass
+    if ser.in_waiting:
+        ser.read(ser.in_waiting)
 
-    # Grava e compila modulos essenciais otimizados
-    fw_candidates = [
-        os.path.join(BASE_DIR, "..", "firmware"),
-        os.path.join(BASE_DIR, "firmware"),
-        r"D:\tally-light\firmware",
-        r"D:\vTally-Studio-Release\firmware"
-    ]
-    fw_dir = next((d for d in fw_candidates if os.path.exists(os.path.join(d, "my-settings.lua"))), None)
-
+    # 2. Gravar e compilar modulos essenciais otimizados
+    fw_dir = find_firmware_dir()
     if fw_dir:
+        log(f"Pasta de firmware identificada: {fw_dir}")
         for mod in ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-led.lua"]:
             mod_path = os.path.join(fw_dir, mod)
             if os.path.exists(mod_path):
-                log(f"Gravando e compilando {mod} otimizado...")
+                log(f"Gravando {mod}...")
                 lc_name = mod.replace(".lua", ".lc")
                 ser.write(f'file.remove("{mod}"); file.remove("{lc_name}")\r\n'.encode('ascii'))
-                time.sleep(0.15)
+                time.sleep(0.12)
                 ser.write(f'f = file.open("{mod}", "w")\r\n'.encode('ascii'))
                 time.sleep(0.1)
                 with open(mod_path, "rb") as mf:
@@ -215,23 +242,51 @@ dofile("my-app.lc")
                     h = mdata[ci:ci+chunk_sz].hex()
                     ser.write(f'f:write(encoder.fromHex("{h}"))\r\n'.encode('ascii'))
                     time.sleep(0.04)
+                    if ser.in_waiting > 128:
+                        ser.read(ser.in_waiting)
                 ser.write(b'f:close()\r\n')
-                time.sleep(0.3)
-                try:
-                    ser.read(1024)
-                except Exception:
-                    pass
+                time.sleep(0.25)
+                if ser.in_waiting:
+                    ser.read(ser.in_waiting)
 
+                # Compilar modulo na memoria agora livre (>40KB heap)
+                log(f"Compilando {lc_name} na placa...")
                 ser.write(f'node.compile("{mod}")\r\n'.encode('ascii'))
-                compile_wait = 2.5 if "led" in mod else 1.5
+                compile_wait = 2.2 if "led" in mod else 1.2
                 time.sleep(compile_wait)
-                ser.write(f'file.remove("{mod}")\r\n'.encode('ascii'))
-                time.sleep(0.15)
-                try:
-                    ser.read(1024)
-                except Exception:
-                    pass
 
+                # Checagem rigorosa: so remove o .lua se o .lc realmente foi criado
+                ser.reset_input_buffer()
+                ser.write(f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))\r\n'.encode('ascii'))
+                time.sleep(0.35)
+                check_resp = ser.read(512).decode('latin1', errors='replace')
+                if "true" in check_resp:
+                    log(f"{lc_name} compilado com sucesso.")
+                    ser.write(f'file.remove("{mod}")\r\n'.encode('ascii'))
+                    time.sleep(0.08)
+                else:
+                    log(f"Aviso: {lc_name} nao confirmado, mantendo {mod} para execucao direta.")
+    else:
+        log("Aviso: Pasta de modulos firmware nao localizada, gravando apenas configuracoes.")
+
+    # 3. Gravar init.lua com rotina de inicializacao limpa (sem flash branco)
+    log("Gravando init.lua limpo (sem flash branco)...")
+    init_code = b"""ws2812.init(ws2812.MODE_SINGLE)
+ws2812.write(string.char(0):rep(75))
+dofile("my-app.lc")
+"""
+    ser.write(b'file.remove("init.lua")\r\n')
+    time.sleep(0.15)
+    ser.write(b'pcall(function() file.remove("init.bak") end)\r\n')
+    time.sleep(0.1)
+    ser.write(b'f = file.open("init.lua", "w")\r\n')
+    time.sleep(0.15)
+    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
+    time.sleep(0.15)
+    ser.write(b'f:close()\r\n')
+    time.sleep(0.2)
+
+    # 4. Gravar tally-settings.ini
     log("Gravando tally-settings.ini na flash do ESP8266...")
     ser.write(b'file.remove("tally-settings.ini")\r\n')
     time.sleep(0.2)
@@ -245,23 +300,28 @@ dofile("my-app.lc")
         escaped = line.replace('\\', '\\\\').replace('"', '\\"')
         cmd = f'f:write("{escaped}\\r\\n")\r\n'.encode('utf-8')
         ser.write(cmd)
-        time.sleep(0.06)
+        time.sleep(0.05)
         
     ser.write(b'f:close()\r\n')
     time.sleep(0.3)
     log("tally-settings.ini gravado com sucesso.")
 
-    log("Reiniciando a placa com as novas configurações...")
+    # 5. Reiniciar em modo de producao
+    log("Reiniciando a placa em modo operacional...")
     ser.write(b'node.restart()\r\n')
     time.sleep(1.0)
     ser.close()
-    log("Placa reiniciada e pronta para uso!")
+    log("Placa configurada, atualizada e pronta para uso!")
     return True, logs
 
 def find_firmware_files():
     candidates = [
         os.path.join(BASE_DIR, "..", "firmware"),
         os.path.join(BASE_DIR, "firmware"),
+        os.path.join(os.path.dirname(BASE_DIR), "firmware"),
+        os.path.join(os.path.dirname(BASE_DIR), "repo_tally_light", "firmware"),
+        r"C:\Users\lelo_\.gemini\antigravity\scratch\tally\repo_tally_light\firmware",
+        r"C:\Users\lelo_\.gemini\antigravity\scratch\tally\firmware",
         r"D:\tally-light\firmware",
         r"D:\vTally-Studio-Release\firmware"
     ]
