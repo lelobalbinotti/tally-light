@@ -366,8 +366,9 @@ function flashFullToBoard(port, config) {
     }
 
     if (!esptoolRes.success) {
-      log('Erro ao gravar com esptool. Verifique o cabo e certifique-se de que a placa ESP8266 está conectada na porta USB.');
-      return resolve({ success: false, logs, message: 'Falha na gravação com esptool.' });
+      log('Falha na conexão com a placa via esptool.');
+      log('DICA: Mantenha pressionado o botão FLASH (ou BOOT) na placa e clique novamente para autorizar a gravação.');
+      return resolve({ success: false, logs, message: 'Falha na gravação com esptool. Segure o botão FLASH na placa.' });
     }
 
     log('Aguardando 4 segundos para o sistema NodeMCU inicializar...');

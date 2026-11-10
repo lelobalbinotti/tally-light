@@ -159,6 +159,8 @@ def upload_ini_to_esp(port, ini_content):
         print(f"[Upload INI] {msg}")
         logs.append(msg)
 
+    import base64
+
     log(f"Conectando a {port} de forma segura...")
     try:
         ser = serial.Serial()
@@ -168,104 +170,91 @@ def upload_ini_to_esp(port, ini_content):
         ser.dtr = False
         ser.rts = False
         ser.open()
-        ser.setDTR(False)
-        ser.setRTS(False)
+        try:
+            ser.setDTR(False)
+            ser.setRTS(False)
+        except Exception:
+            pass
     except Exception as e:
         log(f"Erro ao abrir {port}: {e}")
         return False, logs
 
-    # Aguarda estabilização inicial da porta
-    time.sleep(0.8)
+    # Aguarda estabilizacao do boot inicial da placa
+    time.sleep(2.5)
     try:
         if ser.in_waiting:
             ser.read(ser.in_waiting)
     except Exception:
         pass
 
+    def upload_file_stream(fname, data):
+        ser.write(f'file.remove("{fname}")\r\n'.encode('ascii'))
+        time.sleep(0.08)
+        ser.write(f'f = file.open("{fname}", "w")\r\n'.encode('ascii'))
+        time.sleep(0.08)
+        chunk_sz = 120
+        for i in range(0, len(data), chunk_sz):
+            chunk = data[i:i+chunk_sz]
+            b64 = base64.b64encode(chunk).decode('ascii')
+            ser.write(f'f:write(encoder.fromBase64("{b64}"))\r\n'.encode('ascii'))
+            time.sleep(0.06)
+            if ser.in_waiting > 256:
+                ser.read(ser.in_waiting)
+        ser.write(b'f:close()\r\n')
+        time.sleep(0.15)
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+
     # 1. Liberar memoria RAM no ESP8266 para permitir compilacao dos scripts
     log("Preparando reinicializacao limpa do ESP8266 para liberar memoria RAM...")
-    clean_cmd = b'for i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); pcall(function() file.rename("init.lua", "init.bak") end); node.restart()\r\n'
+    clean_cmd = b'\r\nfor i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); pcall(function() file.remove("init.bak") end); pcall(function() file.rename("init.lua", "init.bak") end); node.restart()\r\n'
+    ser.write(clean_cmd)
+
+    # Aguarda a placa reiniciar limpa mantendo a conexao aberta (sem fechar para evitar novo reset DTR)
+    time.sleep(2.5)
     try:
-        ser.write(clean_cmd)
-        time.sleep(0.8)
-        ser.close()
-    except Exception as e:
-        log(f"Aviso na preparacao limpa: {e}")
-        try:
-            ser.close()
-        except Exception:
-            pass
-
-    # Aguarda a placa reiniciar limpa sem my-app rodando na memoria
-    time.sleep(2.8)
-
-    log(f"Reconectando a {port} em modo limpo (heap livre)...")
-    try:
-        ser = serial.Serial()
-        ser.port = port
-        ser.baudrate = 115200
-        ser.timeout = 0.5
-        ser.dtr = False
-        ser.rts = False
-        ser.open()
-        ser.setDTR(False)
-        ser.setRTS(False)
-    except Exception as e:
-        log(f"Erro ao reconectar a {port}: {e}")
-        return False, logs
-
-    time.sleep(0.5)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-    ser.write(b"\r\ncollectgarbage()\r\n")
-    time.sleep(0.2)
-    if ser.in_waiting:
-        ser.read(ser.in_waiting)
+        ser.reset_input_buffer()
+        ser.reset_output_buffer()
+        ser.write(b"\r\ncollectgarbage()\r\n")
+        time.sleep(0.2)
+        if ser.in_waiting:
+            ser.read(ser.in_waiting)
+    except Exception:
+        pass
 
     # 2. Gravar e compilar modulos essenciais otimizados
     fw_dir = find_firmware_dir()
     if fw_dir:
         log(f"Pasta de firmware identificada: {fw_dir}")
-        for mod in ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-led.lua"]:
+        modules = ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-wifi.lua", "my-led.lua"]
+        for mod in modules:
             mod_path = os.path.join(fw_dir, mod)
             if os.path.exists(mod_path):
                 log(f"Gravando {mod}...")
-                lc_name = mod.replace(".lua", ".lc")
-                ser.write(f'file.remove("{mod}"); file.remove("{lc_name}")\r\n'.encode('ascii'))
-                time.sleep(0.12)
-                ser.write(f'f = file.open("{mod}", "w")\r\n'.encode('ascii'))
-                time.sleep(0.1)
                 with open(mod_path, "rb") as mf:
                     mdata = mf.read()
-                chunk_sz = 64
-                for ci in range(0, len(mdata), chunk_sz):
-                    h = mdata[ci:ci+chunk_sz].hex()
-                    ser.write(f'f:write(encoder.fromHex("{h}"))\r\n'.encode('ascii'))
-                    time.sleep(0.04)
-                    if ser.in_waiting > 128:
-                        ser.read(ser.in_waiting)
-                ser.write(b'f:close()\r\n')
-                time.sleep(0.25)
-                if ser.in_waiting:
-                    ser.read(ser.in_waiting)
+                upload_file_stream(mod, mdata)
+
+                lc_name = mod.replace(".lua", ".lc")
+                ser.write(f'file.remove("{lc_name}")\r\n'.encode('ascii'))
+                time.sleep(0.05)
 
                 # Compilar modulo na memoria agora livre (>40KB heap)
                 log(f"Compilando {lc_name} na placa...")
                 ser.write(f'node.compile("{mod}")\r\n'.encode('ascii'))
-                compile_wait = 2.2 if "led" in mod else 1.2
+                compile_wait = 1.6 if "led" in mod else 0.8
                 time.sleep(compile_wait)
 
-                # Checagem rigorosa: so remove o .lua se o .lc realmente foi criado
                 ser.reset_input_buffer()
                 ser.write(f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))\r\n'.encode('ascii'))
-                time.sleep(0.35)
+                time.sleep(0.3)
                 check_resp = ser.read(512).decode('latin1', errors='replace')
                 if "true" in check_resp:
                     log(f"{lc_name} compilado com sucesso.")
                     ser.write(f'file.remove("{mod}")\r\n'.encode('ascii'))
-                    time.sleep(0.08)
+                    time.sleep(0.05)
                 else:
-                    log(f"Aviso: {lc_name} nao confirmado, mantendo {mod} para execucao direta.")
+                    log(f"Aviso: {lc_name} compilacao direta.")
     else:
         log("Aviso: Pasta de modulos firmware nao localizada, gravando apenas configuracoes.")
 
@@ -275,35 +264,13 @@ def upload_ini_to_esp(port, ini_content):
 ws2812.write(string.char(0):rep(75))
 dofile("my-app.lc")
 """
-    ser.write(b'file.remove("init.lua")\r\n')
-    time.sleep(0.15)
+    upload_file_stream("init.lua", init_code)
     ser.write(b'pcall(function() file.remove("init.bak") end)\r\n')
     time.sleep(0.1)
-    ser.write(b'f = file.open("init.lua", "w")\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:write([==[' + init_code + b']==])\r\n')
-    time.sleep(0.15)
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.2)
 
     # 4. Gravar tally-settings.ini
     log("Gravando tally-settings.ini na flash do ESP8266...")
-    ser.write(b'file.remove("tally-settings.ini")\r\n')
-    time.sleep(0.2)
-    ser.write(b'f = file.open("tally-settings.ini", "w")\r\n')
-    time.sleep(0.2)
-    
-    for line in ini_content.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        escaped = line.replace('\\', '\\\\').replace('"', '\\"')
-        cmd = f'f:write("{escaped}\\r\\n")\r\n'.encode('utf-8')
-        ser.write(cmd)
-        time.sleep(0.05)
-        
-    ser.write(b'f:close()\r\n')
-    time.sleep(0.3)
+    upload_file_stream("tally-settings.ini", ini_content.encode('utf-8'))
     log("tally-settings.ini gravado com sucesso.")
 
     # 5. Reiniciar em modo de producao

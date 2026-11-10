@@ -786,6 +786,9 @@
           <button type="button" class="btn-virgin-flash" id="btn-flash-full">
             <span id="btn-flash-full-text">Instalar Firmware e Configurar Placa Nova</span>
           </button>
+          <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 8px; line-height: 1.4;">
+            Dica: Segure o botão <strong>FLASH (BOOT)</strong> na placa ao clicar se estiver regravando uma placa antiga ou com erro de conexão.
+          </div>
         </div>
       </div>
 
@@ -1181,7 +1184,8 @@
 
       const conf = confirm(
         'Deseja instalar o firmware vTally completo na placa em ' + port + '?\n\n' +
-        'Isso irá gravar o sistema operacional NodeMCU, todos os scripts Lua e as configurações definidas neste formulário.'
+        'IMPORTANTE: Para placas NodeMCU (ESP8266), mantenha pressionado o botão FLASH (ou BOOT) na placa ao clicar em OK, e solte assim que a gravação iniciar nos logs.\n\n' +
+        'Isso irá gravar o sistema operacional NodeMCU, todos os scripts Lua otimizados (matriz 25 LEDs) e as configurações definidas neste formulário.'
       );
       if (!conf) return;
 
