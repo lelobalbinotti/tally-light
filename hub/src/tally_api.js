@@ -230,6 +230,54 @@ function flashIniToBoard(port, iniContent) {
   });
 }
 
+function readBoardSettings(port) {
+  return new Promise((resolve) => {
+    const logs = [];
+    const log = (msg) => logs.push(msg);
+
+    log(`Iniciando leitura serial em ${port}...`);
+
+    const pyScript = findConfiguratorServer();
+    if (pyScript) {
+      const pyDir = path.dirname(pyScript);
+      const cmd = `python -c "import sys; sys.path.insert(0, r'${pyDir}'); from configurator_server import read_ini_from_esp; ok, c, l = read_ini_from_esp('${port}'); print('RESULT_OK' if ok else 'RESULT_FAIL'); [print('LOG:', x) for x in l]; print('CONTENT_START\\n' + (c or '') + '\\nCONTENT_END')"`;
+      exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
+        if (stdout) {
+          const lines = stdout.split(/\r?\n/);
+          for (const l of lines) {
+            if (l.startsWith('LOG: ')) log(l.slice(5));
+          }
+          if (stdout.includes('RESULT_OK') && stdout.includes('CONTENT_START') && stdout.includes('CONTENT_END')) {
+            const content = stdout.split('CONTENT_START')[1].split('CONTENT_END')[0].trim();
+            const parsed = parseIni(content);
+            log(`Configurações lidas com sucesso da placa ${port}.`);
+            return resolve({
+              success: true,
+              config: parsed,
+              logs,
+              message: `Configurações lidas da placa (${port}) com sucesso!`
+            });
+          }
+        }
+        if (err) {
+          log(`Erro na leitura serial: ${err.message}`);
+        }
+        resolve({
+          success: false,
+          logs,
+          message: `Não foi possível ler as configurações da placa na porta ${port}.`
+        });
+      });
+    } else {
+      resolve({
+        success: false,
+        logs,
+        message: 'Helper serial Python não localizado.'
+      });
+    }
+  });
+}
+
 function findConfiguratorServer() {
   const candidateScripts = [
     path.join(path.dirname(process.execPath), 'configurator', 'configurator_server.py'),
@@ -442,6 +490,20 @@ function setupRoutes(app, obsBridge, tallyContainer) {
       }
     } catch (e) {
       res.status(500).json({ error: e.message });
+    }
+  });
+
+  // 3.1. Ler configurações da placa física
+  app.all('/api/read-board', async (req, res) => {
+    try {
+      const port = (req.body && req.body.port) || (req.query && req.query.port);
+      if (!port) {
+        return res.status(400).json({ success: false, message: 'Selecione uma porta COM antes de ler da placa.' });
+      }
+      const result = await readBoardSettings(port);
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ success: false, message: e.message });
     }
   });
 

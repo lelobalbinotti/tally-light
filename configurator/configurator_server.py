@@ -16,68 +16,84 @@ PORT = 7420
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INI_PATH = os.path.join(BASE_DIR, "tally-settings.ini")
 
-def parse_ini_file(path):
+def parse_ini_string(content):
     config = {
-        "tally_name": "Cam4",
+        "tally_name": "Cam1",
         "ssid": "",
         "password": "",
-        "ip_mode": "static",
-        "static_ip": "192.168.1.50",
-        "gateway": "192.168.1.1",
+        "ip_mode": "dhcp",
+        "static_ip": "",
+        "gateway": "",
         "netmask": "255.255.255.0",
-        "hub_ip": "192.168.1.50",
+        "hub_ip": "",
         "hub_port": 7411,
         "brightness": 20,
         "operator_type": "grb-",
         "operator_ws2812": "0 grb",
-        "stage_ws2812": "25 grb"
+        "stage_ws2812": "25 grb",
+        "operator_mode": "grb-"
     }
-    if not os.path.exists(path):
-        return config
-
-    with open(path, "r", encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith(";"):
-                continue
-            if "=" in line:
-                k, v = line.split("=", 1)
-                k = k.strip()
-                v = v.strip()
-                if k == "tally.name":
-                    config["tally_name"] = v
-                elif k == "station.ssid":
-                    config["ssid"] = v
-                elif k == "station.password":
-                    config["password"] = v
-                elif k == "station.ip":
-                    config["static_ip"] = v
-                    config["ip_mode"] = "static" if v else "dhcp"
-                elif k == "station.gateway":
-                    config["gateway"] = v
-                elif k == "station.netmask":
-                    config["netmask"] = v
-                elif k == "hub.ip":
-                    config["hub_ip"] = v
-                elif k == "hub.port":
-                    try:
-                        config["hub_port"] = int(v)
-                    except ValueError:
-                        pass
-                elif k == "brightness" or k == "ws2812.brightness":
-                    try:
-                        config["brightness"] = int(v)
-                    except ValueError:
-                        pass
-                elif k == "operator.type":
-                    config["operator_type"] = v.lower()
-                elif k == "operator.ws2812":
-                    config["operator_ws2812"] = v
-                elif k == "stage.ws2812":
-                    config["stage_ws2812"] = v
+    for line in content.splitlines():
+        line = line.strip()
+        if not line or line.startswith(";"):
+            continue
+        if "=" in line:
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            if k == "tally.name":
+                config["tally_name"] = v
+            elif k == "station.ssid":
+                config["ssid"] = v
+            elif k == "station.password":
+                config["password"] = v
+            elif k == "station.ip":
+                config["static_ip"] = v
+                config["ip_mode"] = "static" if v else "dhcp"
+            elif k == "station.gateway":
+                config["gateway"] = v
+            elif k == "station.netmask":
+                config["netmask"] = v
+            elif k == "hub.ip":
+                config["hub_ip"] = v
+            elif k == "hub.port":
+                try:
+                    config["hub_port"] = int(v)
+                except ValueError:
+                    pass
+            elif k == "brightness" or k == "ws2812.brightness":
+                try:
+                    config["brightness"] = int(v)
+                except ValueError:
+                    pass
+            elif k == "operator.type":
+                config["operator_type"] = v.lower()
+            elif k == "operator.ws2812":
+                config["operator_ws2812"] = v
+            elif k == "stage.ws2812":
+                config["stage_ws2812"] = v
     if not config.get("static_ip"):
         config["ip_mode"] = "dhcp"
+
+    op_ws = 0
+    try:
+        op_ws = int(config["operator_ws2812"].split()[0])
+    except Exception:
+        pass
+    if op_ws > 0:
+        config["operator_mode"] = "ws2812"
+    elif config["operator_type"] == "grb+":
+        config["operator_mode"] = "grb+"
+    else:
+        config["operator_mode"] = "grb-"
+
     return config
+
+def parse_ini_file(path):
+    if not os.path.exists(path):
+        return parse_ini_string("")
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        return parse_ini_string(f.read())
 
 def write_ini_file(path, cfg):
     lines = [
@@ -152,6 +168,76 @@ def find_firmware_dir():
         if os.path.exists(os.path.join(d, "my-led.lua")):
             return os.path.abspath(d)
     return None
+
+def read_ini_from_esp(port):
+    logs = []
+    def log(msg):
+        print(f"[Read INI] {msg}")
+        logs.append(msg)
+
+    log(f"Conectando a {port} para ler configurações...")
+    try:
+        ser = serial.Serial()
+        ser.port = port
+        ser.baudrate = 115200
+        ser.timeout = 1.0
+        ser.dtr = False
+        ser.rts = False
+        ser.open()
+        try:
+            ser.setDTR(False)
+            ser.setRTS(False)
+        except Exception:
+            pass
+    except Exception as e:
+        log(f"Erro ao abrir {port}: {e}")
+        return False, None, logs
+
+    time.sleep(1.0)
+    ser.reset_input_buffer()
+
+    try:
+        ser.write(b"uart.setup(0, 115200, 8, 0, 1, 0)\r\n")
+        time.sleep(0.1)
+        ser.reset_input_buffer()
+
+        cmd = 'if file.open("tally-settings.ini", "r") then print("<<INI_START>>" .. encoder.toBase64(file.read()) .. "<<INI_END>>"); file.close() else print("<<NO_INI>>") end\r\n'
+        ser.write(cmd.encode('ascii'))
+
+        start = time.time()
+        resp = ""
+        while time.time() - start < 4.0:
+            if ser.in_waiting:
+                c = ser.read(ser.in_waiting).decode('latin1', errors='replace')
+                resp += c
+                if "<<INI_END>>" in resp or "<<NO_INI>>" in resp:
+                    break
+            time.sleep(0.05)
+
+        ser.write(b"uart.setup(0, 115200, 8, 0, 1, 1)\r\n")
+        time.sleep(0.05)
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
+
+    if "<<INI_START>>" in resp and "<<INI_END>>" in resp:
+        b64 = resp.split("<<INI_START>>")[1].split("<<INI_END>>")[0].strip()
+        try:
+            import base64
+            content = base64.b64decode(b64).decode('utf-8', errors='replace')
+            log("Configurações lidas com sucesso da flash do ESP8266.")
+            return True, content, logs
+        except Exception as e:
+            log(f"Erro ao decodificar configurações: {e}")
+            return False, None, logs
+    elif "<<NO_INI>>" in resp:
+        log("Arquivo tally-settings.ini não encontrado na placa.")
+        return False, None, logs
+    else:
+        log("A placa não respondeu dentro do tempo limite.")
+        return False, None, logs
 
 def upload_ini_to_esp(port, ini_content):
     logs = []
@@ -409,6 +495,29 @@ class TallyRequestHandler(http.server.SimpleHTTPRequestHandler):
             cfg = parse_ini_file(INI_PATH)
             self.send_json({"success": True, "config": cfg})
             return
+
+        elif path == "/api/read-board":
+            query = urllib.parse.parse_qs(parsed.query)
+            port = query.get("port", [None])[0]
+            if not port:
+                self.send_json({"success": False, "message": "Selecione uma porta COM antes de ler da placa."})
+                return
+            ok, content, logs = read_ini_from_esp(port)
+            if ok and content:
+                cfg = parse_ini_string(content)
+                self.send_json({
+                    "success": True,
+                    "config": cfg,
+                    "logs": logs,
+                    "message": f"Configurações lidas da placa ({port}) com sucesso!"
+                })
+            else:
+                self.send_json({
+                    "success": False,
+                    "logs": logs,
+                    "message": f"Não foi possível ler as configurações da placa na porta {port}."
+                })
+            return
             
         elif path == "/api/status":
             cfg = parse_ini_file(INI_PATH)
@@ -438,7 +547,29 @@ class TallyRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             body = {}
             
-        if path == "/api/save":
+        if path == "/api/read-board":
+            port = body.get("port")
+            if not port:
+                self.send_json({"success": False, "message": "Selecione uma porta COM antes de ler da placa."})
+                return
+            ok, content, logs = read_ini_from_esp(port)
+            if ok and content:
+                cfg = parse_ini_string(content)
+                self.send_json({
+                    "success": True,
+                    "config": cfg,
+                    "logs": logs,
+                    "message": f"Configurações lidas da placa ({port}) com sucesso!"
+                })
+            else:
+                self.send_json({
+                    "success": False,
+                    "logs": logs,
+                    "message": f"Não foi possível ler as configurações da placa na porta {port}."
+                })
+            return
+
+        elif path == "/api/save":
             cfg = body.get("config", {})
             port = body.get("port")
             ini_content = write_ini_file(INI_PATH, cfg)

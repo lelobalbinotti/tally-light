@@ -1052,22 +1052,26 @@
       }
     }
 
+    function applyConfigToForm(c) {
+      if (!c) return;
+      document.getElementById('inp-name').value = c.tally_name || 'Cam1';
+      document.getElementById('inp-ssid').value = c.ssid || '';
+      document.getElementById('inp-password').value = c.password || '';
+      document.getElementById('inp-ip').value = c.static_ip || '';
+      document.getElementById('inp-gw').value = c.gateway || '';
+      document.getElementById('inp-hub-ip').value = c.hub_ip || '';
+      document.getElementById('inp-hub-port').value = c.hub_port || 7411;
+      setBrightness(c.brightness || 5);
+      setIpMode(c.ip_mode || (c.static_ip ? 'static' : 'dhcp'));
+      setOpType(c.operator_mode || c.operator_type || 'grb-');
+    }
+
     async function loadConfig() {
       try {
         const res = await fetch('/api/config');
         const data = await res.json();
         if (data.config) {
-          const c = data.config;
-          document.getElementById('inp-name').value = c.tally_name || 'Cam1';
-          document.getElementById('inp-ssid').value = c.ssid || '';
-          document.getElementById('inp-password').value = c.password || '';
-          document.getElementById('inp-ip').value = c.static_ip || '';
-          document.getElementById('inp-gw').value = c.gateway || '';
-          document.getElementById('inp-hub-ip').value = c.hub_ip || '';
-          document.getElementById('inp-hub-port').value = c.hub_port || 7411;
-          setBrightness(c.brightness || 5);
-          setIpMode(c.ip_mode || 'dhcp');
-          setOpType(c.operator_mode || c.operator_type || 'grb-');
+          applyConfigToForm(data.config);
         }
       } catch (e) {
         console.error(e);
@@ -1107,9 +1111,47 @@
       showToast('Portas USB atualizadas.');
     });
 
-    document.getElementById('btn-read').addEventListener('click', () => {
-      loadConfig();
-      showToast('Configurações recarregadas com sucesso.');
+    document.getElementById('btn-read').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-read');
+      const port = document.getElementById('sel-port').value;
+
+      if (!port) {
+        showToast('Selecione a porta USB da placa antes de clicar em Ler.');
+        return;
+      }
+
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Lendo da Placa...';
+      addLog('> Conectando a ' + port + ' para ler tally-settings.ini gravado na flash...');
+
+      try {
+        const res = await fetch('/api/read-board', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port })
+        });
+        const data = await res.json();
+
+        if (data.logs && Array.isArray(data.logs)) {
+          data.logs.forEach(l => addLog(l));
+        }
+
+        if (data.success && data.config) {
+          applyConfigToForm(data.config);
+          showToast('Configurações lidas da placa com sucesso!');
+          addLog('> Sucesso: ' + (data.config.tally_name || 'Tally') + ' carregado na tela.');
+        } else {
+          showToast(data.message || 'Falha ao ler dados da placa.');
+          addLog('> Erro: ' + (data.message || 'Falha ao ler dados da placa.'));
+        }
+      } catch (err) {
+        showToast('Erro de comunicação: ' + err.message);
+        addLog('> Erro de requisição: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
     });
 
     document.getElementById('btn-save').addEventListener('click', async () => {
