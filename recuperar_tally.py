@@ -428,7 +428,16 @@ def main():
                 time.sleep(3.0)
                 write_tally_ini(port, cfg)
             else:
-                print("\nNao foi possivel regravar a placa. Verifique o cabo e o procedimento do botao FLASH.")
+                print("\n" + "="*60)
+                print("  O esptool nao conseguiu sincronizar com o bootloader ROM.")
+                print("  Isso e comum em chips USB CH340 pelo tempo de chaveamento.")
+                print("="*60)
+                rec = input("  Deseja tentar a recuperacao e gravacao direta via serial? [S/n]: ").strip().upper()
+                if rec != "N":
+                    print("\nIniciando recuperacao direta via console serial...")
+                    write_tally_ini(port, cfg)
+                else:
+                    print("\nOperacao cancelada.")
 
         elif opcao == "2":
             cam_name = input("Nome da Camera [Cam1]: ").strip() or "Cam1"
