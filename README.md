@@ -5,6 +5,7 @@ Sistema completo de Tally Light sem fio para **OBS Studio** e **Blackmagic ATEM*
 O sistema conta com iluminação dupla independente:
 - **LED do Operador:** LED RGB ou fita de LED RGB (4 vias, cátodo comum `grb-` ou ânodo comum `grb+`).
 - **Luz de Palco / Apresentador:** Matriz de 25 LEDs endereçáveis **WS2812B 5x5** (ou fita de LED endereçável cascateada).
+- **Gabinete:** Compatível com case para impressão 3D com fixação em sapata de câmera.
 
 ---
 
@@ -19,6 +20,7 @@ O sistema conta com iluminação dupla independente:
 - **Firmware Otimizado para ESP8266:**
   - Cores calibradas para evitar distorção óptica.
   - Isolamento completo entre as luzes de operador e palco (o operador pode ficar em preview enquanto a matriz desliga, se configurado).
+- **Case 3D Pronto para Impressão:** Compatível com modelo dedicado para encaixe na sapata da câmera.
 
 ---
 
@@ -173,6 +175,21 @@ Pode ser utilizado tanto um LED RGB difuso quanto fitas de LED RGB analógicas c
 
 ---
 
+## Case e Gabinete para Impressão 3D
+
+Para proteção dos componentes eletrônicos e fixação prática na sapata (cold shoe) da câmera, o hardware foi montado utilizando o modelo 3D disponível no Printables:
+
+- **Download do Modelo 3D (STL):** [Wireless Tally Light DIY with ESP8266 no Printables](https://www.printables.com/model/255298-wireless-tally-light-diy-with-esp8266)
+
+### Destaques do Modelo:
+- Compartimento sob medida para a placa NodeMCU ESP8266.
+- Alojamento frontal para a matriz WS2812B 5x5 com encaixe para difusor translúcido.
+- Abertura traseira para visualização do LED piloto do operador de câmera.
+- Abertura lateral para conexão do cabo Micro-USB de alimentação e gravação.
+- Base com encaixe padrão para sapata de câmera (cold shoe) ou adaptadores de tripé.
+
+---
+
 ## Estrutura do Repositório
 
 ```text
@@ -221,6 +238,8 @@ brightness=20                  ; Brilho (1 a 100%)
 ## Créditos e Origem
 
 Este projeto é uma adaptação e evolução baseada no projeto de código aberto [vTally](https://github.com/wifi-tally/wifi-tally) criado originalmente por [Christian Zenker](https://github.com/czenker).
+
+- **Case 3D:** Modelo desenvolvido por [pbeu](https://www.printables.com/@pbeu_250812) disponível no [Printables](https://www.printables.com/model/255298-wireless-tally-light-diy-with-esp8266).
 
 **Principais melhorias e adições desta versão:**
 - Compatibilidade nativa com **OBS Studio 30** via WebSocket v5.
