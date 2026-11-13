@@ -1,18 +1,122 @@
 # -*- coding: utf-8 -*-
 """
 vTally Light - Gravador e Recuperador de Placas ESP8266 (NodeMCU)
-Permite desentupir placas travadas em luz branca e instalar o firmware otimizado com suporte à matriz 5x5 (25 LEDs).
+Permite atualizar placas montadas sem apertar botoes ou regravar a flash inteira.
 """
 
 import os
 import sys
 import time
 import socket
+import struct
 import subprocess
 import serial
 import serial.tools.list_ports
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+COMPACT_MY_LED = """local pOG,pOR,pOB=1,2,3
+local pB=0
+local pMG,pMR,pMB=5,6,7
+gpio.mode(pB,gpio.OUTPUT)
+ws2812.init(ws2812.MODE_SINGLE)
+ws2812.write(string.char(0):rep(75))
+local opD=(MySettings and MySettings.operatorType and MySettings.operatorType()==LightTypes.COMMON_ANODE) and 100 or 0
+local stD=(MySettings and MySettings.stageType and MySettings.stageType()==LightTypes.COMMON_ANODE) and 100 or 0
+local timer=tmr.create()
+pwm2.setup_pin_hz(pOR,1000,100,opD)
+pwm2.setup_pin_hz(pOG,1000,100,opD)
+pwm2.setup_pin_hz(pOB,1000,100,opD)
+pwm2.setup_pin_hz(pMR,1000,100,stD)
+pwm2.setup_pin_hz(pMG,1000,100,stD)
+pwm2.setup_pin_hz(pMB,1000,100,stD)
+pwm2.start()
+local lR,lG,lB=-1,-1,-1
+local function showColor(oR,oG,oB,sR,sG,sB)
+sR,sG,sB=sR or 0,sG or 0,sB or 0
+local opR,opG,opB=oR,oG,oB
+if opR>180 and opG>180 and opB<60 then opG=math.floor(opG*0.35)
+elseif opR>180 and opB>180 and opG<60 then opB=math.floor(opB*0.40) end
+local dR,dG,dB=(opR/255)*100,(opG/255)*100,(opB/255)*100
+if opG>0 and dG<3 then dG=3 end
+if opR>0 and dR<3 then dR=3 end
+if opB>0 and dB<3 then dB=3 end
+if MySettings.operatorType()==LightTypes.COMMON_ANODE then dR,dG,dB=100-dR,100-dG,100-dB end
+pwm2.set_duty(pOR,dR);pwm2.set_duty(pOG,dG);pwm2.set_duty(pOB,dB)
+local sdR,sdG,sdB=(sR/255)*100,(sG/255)*100,(sB/255)*100
+if MySettings.stageType()==LightTypes.COMMON_ANODE then sdR,sdG,sdB=100-sdR,100-sdG,100-sdB end
+pwm2.set_duty(pMR,sdR);pwm2.set_duty(pMG,sdG);pwm2.set_duty(pMB,sdB)
+local mR,mG,mB
+if (oB>0 and oR==0 and oG==0 and sR==0 and sG==0 and sB==0) then mR,mG,mB=0,0,oB
+else mR,mG,mB=sR,sG,sB end
+local maxP=0.25
+if MySettings.ws2812Brightness then
+local b=MySettings.ws2812Brightness()
+if b and b>0 and b<=100 then maxP=b/100 end
+end
+local cR,cG,cB=math.floor(mR*maxP),math.floor(mG*maxP),math.floor(mB*maxP)
+if cR~=lR or cG~=lG or cB~=lB then
+lR,lG,lB=cR,cG,cB
+local isGRB=(MySettings.stageWs2812Type()~=Ws2812Types.RGB)
+local l=isGRB and string.char(cG,cR,cB) or string.char(cR,cG,cB)
+local d=string.char(0,0,0)
+local m25
+if cB>0 and cR==0 and cG==0 then
+m25=d:rep(6)..l:rep(3)..d:rep(2)..l:rep(3)..d:rep(2)..l:rep(3)..d:rep(6)
+else
+m25=l:rep(6)..d:rep(3)..l:rep(2)..d:rep(3)..l:rep(2)..d:rep(3)..l:rep(6)
+end
+local tot=(MySettings.operatorNumberOfWs2812Lights() or 0)+(MySettings.stageNumberOfWs2812Lights() or 0)
+if tot>25 then ws2812.write(m25..m25) else ws2812.write(m25) end
+end
+if (oR==0 and oG==0 and oB<255) or (oR==oG and oG==oB and oB<255) then
+gpio.write(pB,gpio.HIGH)
+else
+gpio.write(pB,gpio.LOW)
+end
+end
+local curHash=nil
+local function showFlashPattern(oR,oG,oB,sR,sG,sB,pattern,dur)
+local pH=""
+for _,step in pairs(pattern) do pH=pH..(step and "1" or "0") end
+local h=string.format("%d/%d/%d-%s-%d",oR,oG,oB,pH,dur)
+if h==curHash then return end
+curHash=h
+local idx=1
+local maxI=#pattern
+local function nxt()
+lR,lG,lB=-1,-1,-1
+if pattern[idx] then showColor(oR,oG,oB,sR,sG,sB)
+else showColor(0,0,0,0,0,0) end
+idx=idx+1
+if idx>maxI then idx=1 end
+end
+timer:unregister()
+nxt()
+timer:alarm(dur,tmr.ALARM_AUTO,nxt)
+end
+local function showStaticColor(oR,oG,oB,sR,sG,sB)
+timer:unregister()
+curHash=nil
+showColor(oR,oG,oB,sR,sG,sB)
+end
+local B,D=true,false
+_G.MyLed={
+initial=function() showStaticColor(0,0,255,0,0,0) end,
+waitForWifiConnection=function() showFlashPattern(0,0,255,0,0,0,{B,D},500) end,
+invalidSettingsFile=function() showFlashPattern(0,0,255,0,0,0,{B,D,B,D,B,D,D,D,D,D,D,D},150) end,
+waitForWifiIp=function() showFlashPattern(0,0,255,0,0,0,{B,D,B,D},250) end,
+waitForServerConnection=function() showFlashPattern(0,0,255,0,0,0,{B,D,B,D,D,D},150) end,
+static=showStaticColor,
+flash=showFlashPattern
+}
+return _G.MyLed
+""".strip()
+
+INIT_CODE = """ws2812.init(ws2812.MODE_SINGLE)
+ws2812.write(string.char(0):rep(75))
+dofile("my-app.lc")
+""".strip()
 
 def get_local_ip():
     try:
@@ -22,33 +126,7 @@ def get_local_ip():
         s.close()
         return ip
     except Exception:
-        return "192.168.1.50"
-
-def find_firmware_files():
-    candidates = [
-        os.path.join(BASE_DIR, "firmware"),
-        os.path.join(BASE_DIR, "..", "firmware"),
-        r"D:\tally-light\firmware",
-        r"D:\vTally-Studio-Release\firmware"
-    ]
-    for d in candidates:
-        fw = os.path.join(d, "nodemcu_firmware.bin")
-        spiffs = os.path.join(d, "full_spiffs_patched.bin")
-        if os.path.exists(fw) and os.path.exists(spiffs):
-            return fw, spiffs
-    return None, None
-
-def find_settings_lua():
-    candidates = [
-        os.path.join(BASE_DIR, "firmware", "my-settings.lua"),
-        os.path.join(BASE_DIR, "..", "firmware", "my-settings.lua"),
-        r"D:\tally-light\firmware\my-settings.lua",
-        r"D:\vTally-Studio-Release\firmware\my-settings.lua"
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c
-    return None
+        return "192.168.1.100"
 
 def list_ports():
     ports = []
@@ -79,22 +157,18 @@ def select_port():
         print("="*50)
         if not ports:
             print("  [Nenhuma porta COM encontrada!]")
-            print("\n  DICAS IMPORTANTES:")
-            print("  1. Verifique se o cabo USB e de DADOS e nao apenas de carga.")
-            print("  2. Conecte a placa NodeMCU diretamente na USB do computador.")
-            print("  3. Certifique-se de que o driver CH340 esta instalado.")
-            input("\nConecte a placa e pressione ENTER para tentar novamente...")
+            input("\nConecte a placa e pressione ENTER para atualizar...")
             continue
 
         default_idx = None
         for i, p in enumerate(ports):
             tag = ""
             if p["is_esp"]:
-                tag = " <-- [RECOMENDADO: Placa NodeMCU/CH340]"
+                tag = " <-- [RECOMENDADO: NodeMCU / CH340]"
                 if default_idx is None:
                     default_idx = i
             elif p["is_arduino"]:
-                tag = " (AVISO: Arduino detectado, nao selecione para gravar Tally!)"
+                tag = " (Arduino detectado)"
             print(f"  [{i+1}] {p['device']} - {p['description']}{tag}")
 
         print("  [R] Atualizar lista de portas")
@@ -106,179 +180,60 @@ def select_port():
         if not escolha and default_idx is not None:
             return ports[default_idx]["device"]
         if escolha.isdigit() and 1 <= int(escolha) <= len(ports):
-            selected = ports[int(escolha)-1]
-            if selected["is_arduino"]:
-                conf = input("Aviso: Essa porta parece ser um Arduino e nao uma placa ESP8266. Deseja continuar mesmo assim? (s/N): ")
-                if conf.lower() != "s":
-                    continue
-            return selected["device"]
+            return ports[int(escolha)-1]["device"]
         print("Opcao invalida. Tente novamente.")
 
-def run_esptool_flash(port, fw_path, spiffs_path):
-    print("\nIniciando conexao com a placa...")
-    print("Tentando colocar a placa em modo de gravacao...")
+def send_file_chunks(ser, filename, content_bytes):
+    print(f"  Gravando {filename} ({len(content_bytes)} bytes)...")
+    ser.write(f'file.remove("{filename}")\r\n'.encode('ascii'))
+    time.sleep(0.08)
+    ser.write(f'f = file.open("{filename}", "w")\r\n'.encode('ascii'))
+    time.sleep(0.08)
 
-    for attempt in range(2):
-        for baud in [460800, 115200]:
-            print(f"\nTentando gravar a {baud} baud...")
-            cmd = [
-                sys.executable, "-m", "esptool",
-                "--chip", "esp8266",
-                "--port", port,
-                "--baud", str(baud),
-                "--before", "default_reset",
-                "--after", "hard_reset",
-                "write_flash",
-                "--flash_mode", "dio",
-                "--flash_size", "4MB",
-                "0x00000", fw_path,
-                "0x80000", spiffs_path
-            ]
-            res = subprocess.run(cmd)
-            if res.returncode == 0:
-                print("\n" + "="*50)
-                print("  FIRMWARE E SPIFFS GRAVADOS COM SUCESSO!")
-                print("="*50)
-                return True
-            else:
-                print(f"Falha a {baud} baud.")
-
-        if attempt == 0:
-            print("\n" + "!"*60)
-            print("  O computador nao conseguiu colocar o ESP8266 em modo FLASH!")
-            print("  Procedimento manual de Bootloader:")
-            print("  1. Mantenha pressionado o botao 'FLASH' (ou 'BOOT') na placa.")
-            print("  2. De um clique rapido no botao 'RST' (Reset).")
-            print("  3. Solte o botao 'FLASH'.")
-            print("!"*60)
-            input("Apos fazer o procedimento acima, pressione ENTER para tentar de novo...")
-
-    return False
-
-def send_wait_prompt(ser, cmd, timeout=3.5):
-    ser.write(cmd.encode('ascii') + b'\r\n')
-    start = time.time()
-    resp = b""
-    while time.time() - start < timeout:
-        if ser.in_waiting:
-            c = ser.read(ser.in_waiting)
-            resp += c
-            if b"> " in resp or resp.endswith(b">"):
-                return True, resp.decode('latin1', errors='replace')
-        time.sleep(0.01)
-    return False, resp.decode('latin1', errors='replace')
-
-def upload_file_hex(ser, local_path, remote_name):
-    if not os.path.exists(local_path):
-        return False
-    with open(local_path, "rb") as f:
-        data = f.read()
-
-    lc_name = remote_name.replace(".lua", ".lc")
-    send_wait_prompt(ser, f'file.remove("{remote_name}"); file.remove("{lc_name}")')
-    ok, _ = send_wait_prompt(ser, f'f = file.open("{remote_name}", "w")')
-    if not ok:
-        return False
-
-    chunk_size = 64
-    for i in range(0, len(data), chunk_size):
-        chunk = data[i:i+chunk_size]
+    chunk_sz = 64
+    for i in range(0, len(content_bytes), chunk_sz):
+        chunk = content_bytes[i:i+chunk_sz]
         h = chunk.hex()
-        ok, _ = send_wait_prompt(ser, f'f:write(encoder.fromHex("{h}"))')
-        if not ok:
-            send_wait_prompt(ser, 'f:close()')
-            return False
+        ser.write(f'f:write(encoder.fromHex("{h}"))\r\n'.encode('ascii'))
+        time.sleep(0.05)
+        sys.stdout.write(".")
+        sys.stdout.flush()
 
-    send_wait_prompt(ser, 'f:close()')
+    ser.write(b'f:close()\r\n')
+    time.sleep(0.1)
+    print(" [OK]")
 
-    send_wait_prompt(ser, f'node.compile("{remote_name}")', timeout=5.0)
-    ok, check_resp = send_wait_prompt(ser, f'print("EXISTS_" .. "{lc_name}:", file.exists("{lc_name}"))')
-    if "true" in check_resp:
-        send_wait_prompt(ser, f'file.remove("{remote_name}")')
-        print(f"  [OK] {lc_name} compilado com sucesso.")
-    else:
-        print(f"  [Aviso] {lc_name} mantido em lua para execucao direta.")
-    return True
-
-def write_tally_ini(port, cfg):
-    print(f"\nConectando a {port} a 115200 baud para preparar a placa...")
+def deploy_software_direct(port, cfg):
+    print(f"\nConectando a {port}...")
     try:
-        ser = serial.Serial()
-        ser.port = port
-        ser.baudrate = 115200
-        ser.timeout = 1.0
+        ser = serial.Serial(port, 115200, timeout=1.0)
         ser.dtr = False
         ser.rts = False
-        ser.open()
-        ser.setDTR(False)
-        ser.setRTS(False)
+        time.sleep(0.2)
     except Exception as e:
         print(f"Erro ao abrir {port}: {e}")
         return False
 
-    time.sleep(0.8)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-
-    # 1. Reiniciar em modo limpo para liberar memoria RAM (>40KB)
-    print("Reiniciando ESP8266 em modo limpo para liberar memoria RAM...")
-    clean_cmd = b'for i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); pcall(function() file.rename("init.lua", "init.bak") end); node.restart()\r\n'
-    try:
-        ser.write(clean_cmd)
-        time.sleep(0.8)
-        ser.close()
-    except Exception:
-        try: ser.close()
-        except Exception: pass
-
-    time.sleep(2.8)
-
-    print(f"Reconectando a {port} com prompt puro...")
-    try:
-        ser = serial.Serial()
-        ser.port = port
-        ser.baudrate = 115200
-        ser.timeout = 1.0
-        ser.dtr = False
-        ser.rts = False
-        ser.open()
-        ser.setDTR(False)
-        ser.setRTS(False)
-    except Exception as e:
-        print(f"Erro ao reconectar a {port}: {e}")
-        return False
-
+    print("1. Parando tarefas em segundo plano e liberando memoria...")
+    ser.write(b'\r\nfor i=0,6 do tmr.stop(i) end; wifi.sta.disconnect(); collectgarbage()\r\n')
     time.sleep(0.5)
-    ser.reset_input_buffer()
-    ser.reset_output_buffer()
-    ser.write(b"\r\ncollectgarbage()\r\n")
+
+    print("2. Removendo versao antiga dos modulos...")
+    ser.write(b'file.remove("my-led.lc"); file.remove("my-led.lua")\r\n')
     time.sleep(0.2)
-    if ser.in_waiting:
-        ser.read(ser.in_waiting)
 
-    # 2. Gravar e compilar modulos essenciais otimizados (settings, tally timer, log timer, led 25 leds)
-    settings_file = find_settings_lua()
-    fw_dir = os.path.dirname(settings_file) if settings_file else ""
-    modules = ["my-settings.lua", "my-tally.lua", "my-log.lua", "my-wifi.lua", "my-led.lua"]
-    for mod in modules:
-        mod_path = os.path.join(fw_dir, mod)
-        if os.path.exists(mod_path):
-            print(f"Gravando e compilando {mod} otimizado...")
-            upload_file_hex(ser, mod_path, mod)
+    print("3. Enviando my-led.lua (9 centro / 16 borda / sem azul fraco)...")
+    send_file_chunks(ser, "my-led.lua", COMPACT_MY_LED.encode('utf-8'))
 
-    # 3. Atualizar init.lua com inicializacao limpa (evita flash branco)
-    print("Gravando init.lua com rotina de inicializacao limpa (sem flash branco)...")
-    init_code = b"""ws2812.init(ws2812.MODE_SINGLE)
-ws2812.write(string.char(0):rep(75))
-dofile("my-app.lc")
-"""
-    send_wait_prompt(ser, 'file.remove("init.lua")')
-    send_wait_prompt(ser, 'pcall(function() file.remove("init.bak") end)')
-    send_wait_prompt(ser, 'f = file.open("init.lua", "w")')
-    send_wait_prompt(ser, f'f:write(encoder.fromHex("{init_code.hex()}"))')
-    send_wait_prompt(ser, 'f:close()')
+    print("4. Compilando my-led.lc na placa...")
+    ser.write(b'node.compile("my-led.lua")\r\n')
+    time.sleep(1.2)
+    ser.write(b'file.remove("my-led.lua")\r\n')
+    time.sleep(0.2)
 
-    # 3. Gravar tally-settings.ini
+    print("5. Gravando init.lua (sem flash branco)...")
+    send_file_chunks(ser, "init.lua", INIT_CODE.encode('utf-8'))
+
     lines = [
         f"tally.name={cfg.get('name', 'Cam1')}",
         f"station.ssid={cfg.get('ssid', '')}",
@@ -296,33 +251,30 @@ dofile("my-app.lc")
         ""
     ]
     ini_content = "\r\n".join(lines).encode('utf-8')
+    print("6. Gravando tally-settings.ini...")
+    send_file_chunks(ser, "tally-settings.ini", ini_content)
 
-    print("Gravando tally-settings.ini...")
-    send_wait_prompt(ser, 'file.remove("tally-settings.ini")')
-    send_wait_prompt(ser, 'f = file.open("tally-settings.ini", "w")')
-    send_wait_prompt(ser, f'f:write(encoder.fromHex("{ini_content.hex()}"))')
-    send_wait_prompt(ser, 'f:close()')
-    print("Configuracoes gravadas com sucesso.")
-
-    # 4. Reiniciar a placa e monitorar Wi-Fi
-    print("Reiniciando a placa e aguardando conexao Wi-Fi...")
+    print("\n7. Reiniciando a placa em modo operacional...")
     ser.write(b'node.restart()\r\n')
     time.sleep(1.0)
 
-    start = time.time()
-    boot_log = ""
-    while time.time() - start < 10.0:
+    print("8. Verificando inicializacao da placa:")
+    t0 = time.time()
+    boot_text = ""
+    while time.time() - t0 < 6.0:
         if ser.in_waiting:
-            chunk = ser.read(ser.in_waiting).decode('latin1', errors='ignore')
-            clean = ''.join(c if (32 <= ord(c) < 127 or c in '\r\n\t') else '' for c in chunk)
+            c = ser.read(ser.in_waiting).decode('latin1', errors='replace')
+            clean = ''.join(ch if (32 <= ord(ch) < 127 or ch in '\r\n\t') else '' for ch in c)
             if clean:
                 sys.stdout.write(clean)
                 sys.stdout.flush()
-        time.sleep(0.1)
+                boot_text += clean
+        time.sleep(0.05)
 
     ser.close()
     print("\n" + "="*50)
-    print("  PLACA CONFIGURADA E PRONTA PARA USO!")
+    print("  PLACA ATUALIZADA E CONFIGURADA COM SUCESSO!")
+    print("  Nenhum botao fisico precisou ser pressionado!")
     print("="*50)
     return True
 
@@ -344,37 +296,21 @@ def monitor_serial(port):
     except Exception as e:
         print(f"\nErro serial: {e}")
     finally:
-        try:
-            ser.close()
-        except Exception:
-            pass
+        try: ser.close()
+        except Exception: pass
 
 def main():
     os.system("cls" if os.name == "nt" else "clear")
     print("="*65)
-    print("   vTally Light - Gravador e Recuperador de Placas ESP8266")
+    print("   vTally Light - Gravador e Atualizador de Placas ESP8266")
     print("="*65)
     local_ip = get_local_ip()
-    print(f"IP deste computador: {local_ip}")
-
-    fw_path, spiffs_path = find_firmware_files()
-    if not fw_path or not spiffs_path:
-        print("\nERRO CRITICO: Arquivos de firmware nao encontrados!")
-        print("Certifique-se de que a pasta 'firmware' existe com:")
-        print("  - nodemcu_firmware.bin")
-        print("  - full_spiffs_patched.bin")
-        input("\nPressione ENTER para sair...")
-        return
-
-    print(f"Firmware encontrado: {os.path.basename(fw_path)}")
-    print(f"SPIFFS encontrado:   {os.path.basename(spiffs_path)}")
 
     while True:
         print("\n" + "-"*50)
         print("O que voce deseja fazer?")
-        print("  [1] Recuperar Placa Travada (Luz Branca) ou Gravar Firmware Completo")
-        print("  [2] Atualizar Somente as Configuracoes (Nome / Wi-Fi / IP)")
-        print("  [3] Abrir Terminal / Monitor Serial para ver mensagens da placa")
+        print("  [1] Atualizar Placa Montada (Sem Botoes / Sem Desmontar)")
+        print("  [2] Abrir Monitor Serial (Depuracao)")
         print("  [S] Sair")
         print("-"*50)
         opcao = input("Escolha uma opcao [1]: ").strip().upper()
@@ -388,63 +324,12 @@ def main():
             continue
 
         if opcao == "1":
-            print(f"\nVoce escolheu regravar a placa na porta {port}.")
-            print("Isso ira restaurar o sistema completo, desentupir qualquer travamento")
-            print("e instalar a versao otimizada para a matriz de 25 LEDs.\n")
-
-            cam_name = input("Nome da Camera (ex: Cam1, Cam2, Cam3) [Cam1]: ").strip() or "Cam1"
+            print(f"\nConfigurando gravacao para a placa na porta {port}.\n")
+            cam_name = input("Nome da Camera (ex: Cam1, Cam2) [Cam1]: ").strip() or "Cam1"
             ssid = input("Nome da Rede Wi-Fi (SSID): ").strip()
             password = input("Senha da Rede Wi-Fi: ").strip()
-            hub_ip = input(f"IP do Computador rodando o vTally Hub [{local_ip}]: ").strip() or local_ip
+            hub_ip = input(f"IP do Computador do vTally Hub [{local_ip}]: ").strip() or local_ip
             
-            print("\nTipo do LED do Operador:")
-            print("  [1] Catodo Comum (grb-) [Padrao recomendado]")
-            print("  [2] Anodo Comum (grb+)")
-            print("  [3] Fita/Matriz WS2812")
-            tipo_sel = input("Escolha o tipo de LED [1]: ").strip()
-            op_type = "grb-"
-            op_ws = "0 grb"
-            if tipo_sel == "2":
-                op_type = "grb+"
-            elif tipo_sel == "3":
-                op_ws = "25 grb"
-
-            cfg = {
-                "name": cam_name,
-                "ssid": ssid,
-                "password": password,
-                "hub_ip": hub_ip,
-                "hub_port": 7411,
-                "operator_type": op_type,
-                "operator_ws2812": op_ws,
-                "stage_ws2812": "25 grb",
-                "brightness": 20
-            }
-
-            print("\nIniciando gravacao do sistema operacional e SPIFFS...")
-            ok = run_esptool_flash(port, fw_path, spiffs_path)
-            if ok:
-                print("Aguardando 3 segundos para inicializar o NodeMCU...")
-                time.sleep(3.0)
-                write_tally_ini(port, cfg)
-            else:
-                print("\n" + "="*60)
-                print("  O esptool nao conseguiu sincronizar com o bootloader ROM.")
-                print("  Isso e comum em chips USB CH340 pelo tempo de chaveamento.")
-                print("="*60)
-                rec = input("  Deseja tentar a recuperacao e gravacao direta via serial? [S/n]: ").strip().upper()
-                if rec != "N":
-                    print("\nIniciando recuperacao direta via console serial...")
-                    write_tally_ini(port, cfg)
-                else:
-                    print("\nOperacao cancelada.")
-
-        elif opcao == "2":
-            cam_name = input("Nome da Camera [Cam1]: ").strip() or "Cam1"
-            ssid = input("Nome do Wi-Fi (SSID): ").strip()
-            password = input("Senha do Wi-Fi: ").strip()
-            hub_ip = input(f"IP do Hub [{local_ip}]: ").strip() or local_ip
-
             cfg = {
                 "name": cam_name,
                 "ssid": ssid,
@@ -456,13 +341,12 @@ def main():
                 "stage_ws2812": "25 grb",
                 "brightness": 20
             }
-            write_tally_ini(port, cfg)
 
-        elif opcao == "3":
+            deploy_software_direct(port, cfg)
+            input("\nPressione ENTER para continuar...")
+
+        elif opcao == "2":
             monitor_serial(port)
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        print("\nOperacao cancelada pelo usuario.")
+    main()
